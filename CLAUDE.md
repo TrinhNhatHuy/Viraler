@@ -111,6 +111,7 @@ pnpm supabase start                  # local Supabase (needs Docker); CLI is a r
 pnpm supabase status -o env          # print local URLs/keys for .env
 pnpm supabase db reset               # re-apply migrations + seed locally
 pnpm supabase migration new <name>   # create migration
+pnpm db:types                        # regenerate apps/web/lib/supabase/database.types.ts after a migration
 
 cd services/worker && uv sync        # install Python deps (Python 3.11)
 cd services/worker && uv run python -m app.main   # worker: /health on :8000 + job loop

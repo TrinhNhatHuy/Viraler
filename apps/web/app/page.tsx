@@ -1,14 +1,25 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@viraler/shared';
+import { getCurrentUser } from '@/lib/auth/dal';
 
-export default function Home() {
+export default async function Home() {
+  if (await getCurrentUser()) redirect('/projects');
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-3xl font-semibold">Viraler</h1>
-      <p className="text-muted-foreground">
-        Vertical video editor · {CANVAS_WIDTH}×{CANVAS_HEIGHT}
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center">
+      <h1 className="text-4xl font-semibold tracking-tight">Viraler</h1>
+      <p className="max-w-md text-muted-foreground">
+        Script → AI voiceover → captions → visuals → MP4. Vertical short-form videos for TikTok,
+        Shorts and Reels.
       </p>
-      <Button disabled>New project (Phase 2)</Button>
+      <div className="flex gap-3">
+        <Button size="lg" nativeButton={false} render={<Link href="/signup" />}>
+          Get started
+        </Button>
+        <Button size="lg" variant="outline" nativeButton={false} render={<Link href="/login" />}>
+          Log in
+        </Button>
+      </div>
     </main>
   );
 }

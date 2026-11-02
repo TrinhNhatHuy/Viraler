@@ -1,0 +1,9 @@
+<h2>Reset your Viraler password</h2>
+<p>Click the link below to choose a new password:</p>
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/reset-password"
+    >Reset my password</a
+  >
+</p>
+<p>If you didn't ask for a password reset, you can ignore this email.</p>

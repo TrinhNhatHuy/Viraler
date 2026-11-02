@@ -1,0 +1,82 @@
+'use client';
+
+import { ArrowLeftIcon } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { isDirty } from '@/stores/editor-store';
+import { useEditorStore, useEditorStoreApi } from './editor-store-provider';
+
+export function EditorHeader({ saveNow }: { saveNow: () => Promise<void> }) {
+  const router = useRouter();
+  const store = useEditorStoreApi();
+  const title = useEditorStore((s) => s.title);
+  const setTitle = useEditorStore((s) => s.setTitle);
+
+  const onBack = async (e: React.MouseEvent) => {
+    if (!isDirty(store.getState())) return; // let the Link navigate
+    e.preventDefault();
+    await saveNow();
+    if (!isDirty(store.getState())) router.push('/projects');
+  };
+
+  return (
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b px-3">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Back to projects"
+        nativeButton={false}
+        render={<Link href="/projects" onClick={onBack} />}
+      >
+        <ArrowLeftIcon />
+      </Button>
+      <Input
+        aria-label="Project title"
+        value={title}
+        maxLength={200}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={() => {
+          if (!store.getState().title.trim()) setTitle(store.getState().savedTitle);
+        }}
+        className="h-9 max-w-sm border-transparent text-base font-medium shadow-none hover:border-input"
+      />
+      <div className="ml-auto">
+        <SaveStatus onRetry={() => void saveNow()} />
+      </div>
+    </header>
+  );
+}
+
+function SaveStatus({ onRetry }: { onRetry: () => void }) {
+  const status = useEditorStore((s) => s.saveStatus);
+  const dirty = useEditorStore(isDirty);
+  const error = useEditorStore((s) => s.saveError);
+
+  if (status === 'error') {
+    return (
+      <div className="flex items-center gap-2 text-sm text-destructive" role="status">
+        <span title={error ?? undefined}>Save failed</span>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  const label =
+    status === 'saving'
+      ? 'Saving…'
+      : status === 'conflict'
+        ? 'Not saved'
+        : dirty
+          ? 'Unsaved changes'
+          : status === 'saved'
+            ? 'Saved'
+            : '';
+  return (
+    <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
+      {label}
+    </span>
+  );
+}
