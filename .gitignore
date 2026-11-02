@@ -1,0 +1,30 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# next
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# env
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# supabase
+supabase/.branches/
+supabase/.temp/
+
+# misc
+.DS_Store
+coverage/
+*.log

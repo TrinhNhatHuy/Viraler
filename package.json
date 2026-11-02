@@ -1,0 +1,22 @@
+{
+  "name": "viraler",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "supabase": "supabase"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "supabase": "2.122.0",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "canvas": { "width": 1080, "height": 1920, "fit": "fill", "background": "#000000" },
+  "script": "Top 3 fastest animals on Earth. Number three: the pronghorn.",
+  "voiceover": {
+    "src": "user-id/project-id/voiceover.wav",
+    "durationMs": 4200,
+    "source": "tts",
+    "voice": "af_heart",
+    "volume": 1
+  },
+  "captions": {
+    "enabled": true,
+    "words": [
+      { "text": "Top", "startMs": 0, "endMs": 250 },
+      { "text": "3", "startMs": 250, "endMs": 500 },
+      { "text": "fastest", "startMs": 500, "endMs": 1000 }
+    ],
+    "style": {
+      "fontFamily": "Inter",
+      "fontSizePx": 64,
+      "color": "#ffffff",
+      "strokeColor": "#000000",
+      "strokeWidthPx": 6,
+      "positionY": 0.7,
+      "align": "center",
+      "uppercase": true,
+      "highlightColor": "#ffd400",
+      "maxWordsPerLine": 3
+    }
+  },
+  "hookTitle": {
+    "enabled": true,
+    "text": "You won't believe #1",
+    "durationMs": 3000,
+    "style": {
+      "fontFamily": "Inter",
+      "fontSizePx": 80,
+      "color": "#ffffff",
+      "strokeColor": "#000000",
+      "strokeWidthPx": 8,
+      "backgroundColor": "#ff0050",
+      "positionY": 0.15,
+      "align": "center",
+      "uppercase": true
+    }
+  },
+  "ranking": { "enabled": true, "title": "Fastest animals", "order": "descending" },
+  "clips": [
+    {
+      "id": "clip-1",
+      "mediaId": "media-1",
+      "startMs": 0,
+      "durationMs": 2100,
+      "trimInMs": 500,
+      "muted": true,
+      "rank": 3,
+      "label": "Pronghorn"
+    },
+    {
+      "id": "clip-2",
+      "mediaId": "media-2",
+      "startMs": 2100,
+      "durationMs": 2100,
+      "trimInMs": 0,
+      "muted": false
+    }
+  ],
+  "media": [
+    {
+      "id": "media-1",
+      "kind": "video",
+      "src": "user-id/media/pronghorn.mp4",
+      "durationMs": 8000,
+      "origin": "stock"
+    },
+    { "id": "media-2", "kind": "image", "src": "user-id/media/cheetah.jpg", "origin": "upload" }
+  ]
+}

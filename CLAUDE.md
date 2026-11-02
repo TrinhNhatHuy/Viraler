@@ -99,24 +99,25 @@ docker-compose.yml
 
 ## Commands
 
-Fill in / correct these as the project is scaffolded.
-
 ```bash
-pnpm install                         # install JS deps
-pnpm dev                             # run web app
-pnpm --filter web lint               # lint
-pnpm --filter web typecheck          # tsc --noEmit
-pnpm --filter web test               # unit tests (Vitest)
+pnpm install                         # install JS deps (Node 26, pnpm 12)
+pnpm dev                             # run web app (http://localhost:3000)
+pnpm lint                            # lint all workspaces (web: eslint, shared: prettier --check)
+pnpm typecheck                       # tsc --noEmit, all workspaces
+pnpm test                            # Vitest, all workspaces (web + packages/shared)
+pnpm format                          # prettier --write (md files ignored)
 
-supabase start                       # local Supabase (needs Docker)
-supabase db reset                    # re-apply migrations locally
-supabase migration new <name>        # create migration
+pnpm supabase start                  # local Supabase (needs Docker); CLI is a root devDependency
+pnpm supabase status -o env          # print local URLs/keys for .env
+pnpm supabase db reset               # re-apply migrations + seed locally
+pnpm supabase migration new <name>   # create migration
 
-cd services/worker && uv sync        # install Python deps
-cd services/worker && uv run python -m app.main   # run worker loop
-cd services/worker && uv run pytest  # worker tests
+cd services/worker && uv sync        # install Python deps (Python 3.11)
+cd services/worker && uv run python -m app.main   # worker: /health on :8000 + job loop
+cd services/worker && uv run ruff check . && uv run ruff format --check .
+cd services/worker && uv run pytest  # worker tests (DB tests skip if local Supabase isn't running)
 
-docker compose up --build            # everything
+docker compose up --build            # web + worker (run `pnpm supabase start` first)
 ```
 
 ## Environment variables
