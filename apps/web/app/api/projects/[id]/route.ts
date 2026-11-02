@@ -32,7 +32,7 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/projects/[id]'
   if (!body.ok) return body.response;
 
   try {
-    const result = await updateProject(auth.supabase, id, body.data);
+    const result = await updateProject(auth.supabase, auth.user.id, id, body.data);
     switch (result.kind) {
       case 'ok':
         return Response.json({ revision: result.revision, updatedAt: result.updatedAt });
@@ -43,6 +43,10 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/projects/[id]'
         });
       case 'not_found':
         return notFound();
+      case 'forbidden_path':
+        return apiError(400, 'invalid_storage_path', {
+          message: "Project data references a file outside this project's folder.",
+        });
     }
   } catch (e) {
     if (e instanceof RepoError && e.code === CHECK_VIOLATION) {
@@ -58,6 +62,6 @@ export async function DELETE(_req: Request, ctx: RouteContext<'/api/projects/[id
   if (!auth.ok) return auth.response;
   if (!isUuid(id)) return notFound();
 
-  const deleted = await deleteProject(auth.supabase, id);
+  const deleted = await deleteProject(auth.supabase, auth.user.id, id);
   return deleted ? new Response(null, { status: 204 }) : notFound();
 }

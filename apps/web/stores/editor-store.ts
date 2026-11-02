@@ -15,9 +15,13 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
 
 export interface EditorInit {
   id: string;
+  /** Owner's id: first segment of the project's Storage paths. */
+  userId: string;
   title: string;
   project: Project;
   revision: number;
+  /** Server `updated_at` when the editor loaded the project. */
+  loadedUpdatedAt?: string;
 }
 
 export interface SaveSnapshot {
@@ -30,6 +34,8 @@ export interface SaveSnapshot {
 
 export interface EditorState {
   id: string;
+  userId: string;
+  loadedUpdatedAt: string | null;
   title: string;
   /** Last title confirmed by the server (used to revert an emptied title). */
   savedTitle: string;
@@ -74,6 +80,8 @@ export function snapshotToBody(s: SaveSnapshot): UpdateProjectBody {
 function initialState(init: EditorInit) {
   return {
     id: init.id,
+    userId: init.userId,
+    loadedUpdatedAt: init.loadedUpdatedAt ?? null,
     title: init.title,
     savedTitle: init.title,
     project: init.project,

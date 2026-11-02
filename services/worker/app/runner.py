@@ -9,14 +9,12 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from app.db import connect
-from app.jobs import HANDLERS, Handler
+from app.jobs.base import Handler, PermanentJobError
 from app.models import MAX_JOB_ATTEMPTS, ClaimedJob
 
+__all__ = ["PermanentJobError", "claim_job", "complete_job", "fail_job", "run_once", "run_forever"]
+
 log = logging.getLogger(__name__)
-
-
-class PermanentJobError(Exception):
-    """Retrying won't help (bad input, no handler). Fail immediately."""
 
 
 CLAIM_SQL = """
@@ -86,7 +84,7 @@ def process_job(
         log.info("job %s (%s) done", job.id, job.type)
 
 
-def run_once(conn: psycopg.Connection[Any], handlers: dict[str, Handler] = HANDLERS) -> bool:
+def run_once(conn: psycopg.Connection[Any], handlers: dict[str, Handler]) -> bool:
     """Claim and process one job. Returns False if the queue was empty."""
     job = claim_job(conn)
     if job is None:
@@ -95,7 +93,12 @@ def run_once(conn: psycopg.Connection[Any], handlers: dict[str, Handler] = HANDL
     return True
 
 
-def run_forever(database_url: str, poll_interval: float, stop: threading.Event) -> None:
+def run_forever(
+    database_url: str,
+    poll_interval: float,
+    stop: threading.Event,
+    handlers: dict[str, Handler],
+) -> None:
     log.info("worker loop started (poll every %.1fs)", poll_interval)
     conn: psycopg.Connection[Any] | None = None
     backoff = poll_interval
@@ -105,7 +108,7 @@ def run_forever(database_url: str, poll_interval: float, stop: threading.Event) 
                 conn = connect(database_url)
                 log.info("connected to database")
                 backoff = poll_interval
-            if run_once(conn):
+            if run_once(conn, handlers):
                 continue  # drain the queue without sleeping
             stop.wait(poll_interval)
         except psycopg.OperationalError as e:

@@ -7,6 +7,6 @@ export async function POST(_req: Request, ctx: RouteContext<'/api/projects/[id]/
   if (!auth.ok) return auth.response;
   if (!isUuid(id)) return notFound();
 
-  const copy = await duplicateProject(auth.supabase, id);
+  const copy = await duplicateProject(auth.supabase, auth.user.id, id);
   return copy ? Response.json(copy, { status: 201 }) : notFound();
 }

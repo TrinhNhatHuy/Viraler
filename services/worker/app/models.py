@@ -6,11 +6,13 @@ both the Zod and these models (see tests/test_models.py) to catch drift.
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StringConstraints, model_validator
 from pydantic.alias_generators import to_camel
 
 SCRIPT_MAX_CHARS = 5000
 MAX_JOB_ATTEMPTS = 3
+TTS_SPEED_MIN = 0.5
+TTS_SPEED_MAX = 2.0
 
 Ms = Annotated[int, Field(ge=0, strict=True)]
 HexColor = Annotated[str, Field(pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
@@ -54,6 +56,7 @@ class Voiceover(CamelModel):
     source: Literal["tts", "recorded", "uploaded"]
     voice: str | None = None
     volume: Annotated[float, Field(ge=0, le=1)]
+    script_hash: str | None = None
 
 
 class CaptionWord(CamelModel):
@@ -124,9 +127,37 @@ JobType = Literal["tts", "transcribe", "stock_search", "image", "render"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 
+# Must match packages/shared/src/voices.json (checked in tests/test_models.py).
+VoiceId = Literal[
+    "af_heart",
+    "af_bella",
+    "af_nicole",
+    "af_aoede",
+    "af_kore",
+    "af_sarah",
+    "am_fenrir",
+    "am_michael",
+    "am_puck",
+    "bf_emma",
+    "bf_isabella",
+    "bm_george",
+    "bm_fable",
+]
+
+
 class TtsInput(CamelModel):
-    text: Annotated[str, Field(min_length=1, max_length=SCRIPT_MAX_CHARS)]
-    voice: Annotated[str, Field(min_length=1)]
+    text: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=SCRIPT_MAX_CHARS)
+    ]
+    voice: VoiceId
+    speed: Annotated[float, Field(ge=TTS_SPEED_MIN, le=TTS_SPEED_MAX)] = 1.0
+
+
+class TtsOutput(CamelModel):
+    path: Annotated[str, Field(min_length=1)]
+    duration_ms: Ms
+    sample_rate: Annotated[int, Field(gt=0)]
+    voice: str
 
 
 class TranscribeInput(CamelModel):

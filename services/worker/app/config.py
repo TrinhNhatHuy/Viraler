@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +11,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
     worker_poll_interval_seconds: float = 2.0
+    models_dir: str = "./models"
+    kokoro_model: Literal["fp32", "int8", "fp16"] = "fp32"
     worker_host: str = "0.0.0.0"
     worker_port: int = 8000
 

@@ -28,3 +28,6 @@ supabase/.temp/
 .DS_Store
 coverage/
 *.log
+
+# worker model files (Kokoro)
+services/worker/models/

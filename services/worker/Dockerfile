@@ -9,7 +9,8 @@ RUN uv sync --frozen --no-dev
 
 COPY app ./app
 ENV PATH=/app/.venv/bin:$PATH
-RUN useradd --create-home worker
+RUN useradd --create-home worker && mkdir -p /models && chown worker /models
+ENV MODELS_DIR=/models
 USER worker
 EXPOSE 8000
 CMD ["python", "-m", "app.main"]

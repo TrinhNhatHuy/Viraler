@@ -17,7 +17,7 @@ export type RequestResult<T> = { ok: true; value: T } | RequestFailure;
 /** Browsers reject keepalive requests with bodies over 64 KB. */
 const KEEPALIVE_MAX_BYTES = 60_000;
 
-async function request<T>(
+export async function request<T>(
   url: string,
   init: RequestInit,
   schema: z.ZodType<T> | null,
@@ -45,7 +45,13 @@ async function request<T>(
   if (res.status === 409 && body.success && body.data.revision !== undefined) {
     return { ok: false, kind: 'conflict', revision: body.data.revision, message };
   }
-  if (res.status === 404) return { ok: false, kind: 'not_found', message: 'Project not found.' };
+  if (res.status === 404) {
+    return {
+      ok: false,
+      kind: 'not_found',
+      message: (body.success && body.data.message) || 'Not found.',
+    };
+  }
   if (res.status === 401) {
     return { ok: false, kind: 'unauthorized', message: 'Your session expired. Log in again.' };
   }

@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { SCRIPT_MAX_CHARS } from './project';
+import { VoiceId } from './voices';
 
 export const JobType = z.enum(['tts', 'transcribe', 'stock_search', 'image', 'render']);
 export type JobType = z.infer<typeof JobType>;
@@ -6,13 +8,32 @@ export type JobType = z.infer<typeof JobType>;
 export const JobStatus = z.enum(['queued', 'running', 'done', 'failed']);
 export type JobStatus = z.infer<typeof JobStatus>;
 
-export const MAX_JOB_ATTEMPTS = 3;
+export const ACTIVE_JOB_STATUSES = ['queued', 'running'] as const satisfies readonly JobStatus[];
 
-// Per-type inputs. Stubs for now; each is fleshed out in the phase that implements the job.
+export const MAX_JOB_ATTEMPTS = 3;
+/** Max queued + running jobs per user. */
+export const MAX_ACTIVE_JOBS_PER_USER = 3;
+
+export const TTS_SPEED_MIN = 0.5;
+export const TTS_SPEED_MAX = 2;
+
+// Per-type inputs. Mirrored in services/worker/app/models.py.
 export const TtsInput = z.object({
-  text: z.string().min(1).max(5000),
-  voice: z.string().min(1),
+  text: z.string().trim().min(1, 'Script is empty').max(SCRIPT_MAX_CHARS),
+  voice: VoiceId,
+  speed: z.number().min(TTS_SPEED_MIN).max(TTS_SPEED_MAX).default(1),
 });
+export type TtsInput = z.infer<typeof TtsInput>;
+
+export const TtsOutput = z.object({
+  path: z.string().min(1),
+  durationMs: z.number().int().nonnegative(),
+  sampleRate: z.number().int().positive(),
+  voice: z.string(),
+});
+export type TtsOutput = z.infer<typeof TtsOutput>;
+
+// Fleshed out in the phase that implements each job.
 export const TranscribeInput = z.object({
   audioPath: z.string().min(1),
 });
@@ -52,3 +73,26 @@ export const Job = z.object({
   updated_at: z.string(),
 });
 export type Job = z.infer<typeof Job>;
+
+// --- API (/api/jobs) -----------------------------------------------------------
+
+/** Job types the web API accepts so far. Others are added as their phase lands. */
+export const CreateJobBody = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('tts'), projectId: z.uuid(), input: TtsInput }),
+]);
+export type CreateJobBody = z.infer<typeof CreateJobBody>;
+
+/** Job as returned by the web API (camelCase). */
+export const JobView = z.object({
+  id: z.uuid(),
+  type: JobType,
+  status: JobStatus,
+  projectId: z.uuid().nullable(),
+  input: z.record(z.string(), z.unknown()),
+  output: z.record(z.string(), z.unknown()).nullable(),
+  error: z.string().nullable(),
+  attempts: z.number().int(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type JobView = z.infer<typeof JobView>;

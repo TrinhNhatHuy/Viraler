@@ -25,6 +25,7 @@ export function ConflictBanner({ saveNow }: { saveNow: () => Promise<void> }) {
     if (server) {
       store.getState().replaceFromServer({
         id: server.id,
+        userId: store.getState().userId,
         title: server.title,
         project: server.data,
         revision: server.revision,

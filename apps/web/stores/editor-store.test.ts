@@ -5,6 +5,7 @@ import { createEditorStore, isDirty, snapshotToBody } from './editor-store';
 const setup = () =>
   createEditorStore({
     id: 'p1',
+    userId: 'u1',
     title: 'Video',
     project: createEmptyProject(),
     revision: 1,
@@ -123,7 +124,9 @@ describe('editor store', () => {
     store.getState().saveConflicted(3);
 
     const server = createEmptyProject();
-    store.getState().replaceFromServer({ id: 'p1', title: 'Theirs', project: server, revision: 3 });
+    store
+      .getState()
+      .replaceFromServer({ id: 'p1', userId: 'u1', title: 'Theirs', project: server, revision: 3 });
     const s = store.getState();
     expect(s).toMatchObject({ title: 'Theirs', revision: 3, saveStatus: 'saved' });
     expect(s.project.canvas.fit).toBe('fill');

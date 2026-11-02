@@ -1,13 +1,16 @@
 import copy
 import json
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from pydantic import ValidationError
 
-from app.models import JOB_INPUT_BY_TYPE, SCRIPT_MAX_CHARS, Project
+from app.models import JOB_INPUT_BY_TYPE, SCRIPT_MAX_CHARS, Project, VoiceId
 
-FIXTURE = Path(__file__).resolve().parents[3] / "packages/shared/fixtures/project.sample.json"
+SHARED = Path(__file__).resolve().parents[3] / "packages/shared"
+FIXTURE = SHARED / "fixtures/project.sample.json"
+VOICES = SHARED / "src/voices.json"
 
 
 @pytest.fixture
@@ -61,3 +64,12 @@ def test_rejects_unknown_keys(sample: dict) -> None:
 
 def test_every_job_type_has_input_model() -> None:
     assert set(JOB_INPUT_BY_TYPE) == {"tts", "transcribe", "stock_search", "image", "render"}
+
+
+def test_voice_ids_match_shared_voices_json() -> None:
+    shared = [v["id"] for v in json.loads(VOICES.read_text())]
+    assert list(get_args(VoiceId)) == shared
+
+
+def test_fixture_keeps_script_hash(sample: dict) -> None:
+    assert Project.model_validate(sample).voiceover.script_hash == sample["voiceover"]["scriptHash"]

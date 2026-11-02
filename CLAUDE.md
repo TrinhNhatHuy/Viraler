@@ -114,9 +114,11 @@ pnpm supabase migration new <name>   # create migration
 pnpm db:types                        # regenerate apps/web/lib/supabase/database.types.ts after a migration
 
 cd services/worker && uv sync        # install Python deps (Python 3.11)
+cd services/worker && uv run python -m app.model_files   # download Kokoro model files (~350 MB, once)
 cd services/worker && uv run python -m app.main   # worker: /health on :8000 + job loop
 cd services/worker && uv run ruff check . && uv run ruff format --check .
 cd services/worker && uv run pytest  # worker tests (DB tests skip if local Supabase isn't running)
+cd services/worker && uv run pytest -m slow   # real Kokoro inference (needs model files)
 
 docker compose up --build            # web + worker (run `pnpm supabase start` first)
 ```

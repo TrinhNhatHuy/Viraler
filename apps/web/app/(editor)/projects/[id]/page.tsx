@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: 'Editor · Viraler' };
 
 export default async function EditorPage({ params }: PageProps<'/projects/[id]'>) {
   const { id } = await params;
-  await requireUser(`/projects/${id}`);
+  const user = await requireUser(`/projects/${id}`);
   if (!isUuid(id)) notFound();
 
   const result = await getProject(await createClient(), id);
@@ -40,9 +40,11 @@ export default async function EditorPage({ params }: PageProps<'/projects/[id]'>
       key={project.id}
       initial={{
         id: project.id,
+        userId: user.id,
         title: project.title,
         project: project.data,
         revision: project.revision,
+        loadedUpdatedAt: project.updatedAt,
       }}
     >
       <EditorShell />

@@ -4,7 +4,7 @@
  * running or the root .env is missing.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createEmptyProject, type Project } from '@viraler/shared';
+import { createEmptyProject, MEDIA_BUCKET, type Project, voiceoverPath } from '@viraler/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@/lib/supabase/database.types';
 import {
@@ -36,6 +36,10 @@ async function supabaseReachable(): Promise<boolean> {
 const available = await supabaseReachable();
 
 type Db = SupabaseClient<Database>;
+interface TestUser {
+  id: string;
+  db: Db;
+}
 const noSession = { auth: { persistSession: false, autoRefreshToken: false } };
 
 describe.skipIf(!available)('project repo (local Supabase)', () => {
@@ -43,8 +47,10 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
   const userIds: string[] = [];
   let alice: Db;
   let bob: Db;
+  let aliceId: string;
+  let bobId: string;
 
-  async function signedInUser(): Promise<Db> {
+  async function signedInUser(): Promise<TestUser> {
     const email = `repo-test-${crypto.randomUUID()}@example.test`;
     const password = 'correct-horse-battery';
     const { data, error } = await admin.auth.admin.createUser({
@@ -58,12 +64,12 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
     const client = createClient<Database>(url!, anonKey!, noSession);
     const { error: signInError } = await client.auth.signInWithPassword({ email, password });
     if (signInError) throw signInError;
-    return client;
+    return { id: data.user.id, db: client };
   }
 
   beforeAll(async () => {
-    alice = await signedInUser();
-    bob = await signedInUser();
+    ({ db: alice, id: aliceId } = await signedInUser());
+    ({ db: bob, id: bobId } = await signedInUser());
   });
 
   afterAll(async () => {
@@ -98,11 +104,11 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
 
     expect((await listProjects(bob)).map((p) => p.id)).not.toContain(created.id);
     expect(await getProject(bob, created.id)).toEqual({ kind: 'not_found' });
-    expect(await updateProject(bob, created.id, { title: 'pwned' })).toEqual({
+    expect(await updateProject(bob, bobId, created.id, { title: 'pwned' })).toEqual({
       kind: 'not_found',
     });
-    expect(await deleteProject(bob, created.id)).toBe(false);
-    expect(await duplicateProject(bob, created.id)).toBeNull();
+    expect(await deleteProject(bob, bobId, created.id)).toBe(false);
+    expect(await duplicateProject(bob, bobId, created.id)).toBeNull();
 
     const still = await getProject(alice, created.id);
     expect(still.kind === 'ok' && still.project.title).toBe('Private');
@@ -112,11 +118,11 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
     const created = await createProject(alice, { data: createEmptyProject() });
     const data = withFit(createEmptyProject(), 'fit');
 
-    const first = await updateProject(alice, created.id, { data, expectedRevision: 1 });
+    const first = await updateProject(alice, aliceId, created.id, { data, expectedRevision: 1 });
     expect(first).toMatchObject({ kind: 'ok', revision: 2 });
 
     // A second tab still on revision 1 must not overwrite.
-    const stale = await updateProject(alice, created.id, {
+    const stale = await updateProject(alice, aliceId, created.id, {
       data: withFit(data, 'fill'),
       expectedRevision: 1,
     });
@@ -128,11 +134,11 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
 
   it("title-only updates don't bump the revision or need one", async () => {
     const created = await createProject(alice, { data: createEmptyProject() });
-    const renamed = await updateProject(alice, created.id, { title: 'Renamed' });
+    const renamed = await updateProject(alice, aliceId, created.id, { title: 'Renamed' });
     expect(renamed).toMatchObject({ kind: 'ok', revision: 1 });
 
     // An editor that loaded revision 1 can still save data afterwards.
-    const saved = await updateProject(alice, created.id, {
+    const saved = await updateProject(alice, aliceId, created.id, {
       data: withFit(createEmptyProject(), 'fit'),
       expectedRevision: 1,
     });
@@ -151,7 +157,7 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
       title: 'Original',
       data: withFit(createEmptyProject(), 'fit'),
     });
-    const copy = await duplicateProject(alice, created.id);
+    const copy = await duplicateProject(alice, aliceId, created.id);
     expect(copy).toMatchObject({ title: 'Copy of Original', revision: 1 });
 
     const got = await getProject(alice, copy!.id);
@@ -160,9 +166,9 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
 
   it('deletes a project', async () => {
     const created = await createProject(alice, { data: createEmptyProject() });
-    expect(await deleteProject(alice, created.id)).toBe(true);
+    expect(await deleteProject(alice, aliceId, created.id)).toBe(true);
     expect(await getProject(alice, created.id)).toEqual({ kind: 'not_found' });
-    expect(await deleteProject(alice, created.id)).toBe(false);
+    expect(await deleteProject(alice, aliceId, created.id)).toBe(false);
   });
 
   it('reports stored data that fails validation as invalid', async () => {
@@ -173,5 +179,106 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
       .single();
     const got = await getProject(alice, row!.id);
     expect(got.kind).toBe('invalid');
+  });
+
+  // --- Storage-backed voiceover files ---------------------------------------
+
+  const wav = () => new Blob([new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0])], { type: 'audio/wav' });
+
+  async function upload(db: Db, path: string) {
+    const { error } = await db.storage.from(MEDIA_BUCKET).upload(path, wav(), { upsert: true });
+    if (error) throw error;
+  }
+
+  async function exists(db: Db, path: string): Promise<boolean> {
+    const folder = path.slice(0, path.lastIndexOf('/'));
+    const { data } = await db.storage.from(MEDIA_BUCKET).list(folder);
+    return Boolean(data?.some((f) => `${folder}/${f.name}` === path));
+  }
+
+  const withVoiceover = (src: string): Project => ({
+    ...createEmptyProject(),
+    voiceover: { src, durationMs: 1000, source: 'tts', voice: 'af_heart', volume: 1 },
+  });
+
+  async function projectWithVoiceover(file = 'tts-1.wav') {
+    const created = await createProject(alice, { data: createEmptyProject() });
+    const src = voiceoverPath(aliceId, created.id, file);
+    await upload(alice, src);
+    const saved = await updateProject(alice, aliceId, created.id, {
+      data: withVoiceover(src),
+      expectedRevision: 1,
+    });
+    expect(saved.kind).toBe('ok');
+    return { id: created.id, src };
+  }
+
+  it('rejects voiceover paths outside the project folder', async () => {
+    const created = await createProject(alice, { data: createEmptyProject() });
+    const other = await createProject(alice, { data: createEmptyProject() });
+    for (const src of [
+      voiceoverPath(bobId, created.id, 'x.wav'), // another user
+      voiceoverPath(aliceId, other.id, 'x.wav'), // another project
+      `${aliceId}/${created.id}/../${other.id}/voiceover/x.wav`,
+    ]) {
+      const res = await updateProject(alice, aliceId, created.id, {
+        data: withVoiceover(src),
+        expectedRevision: 1,
+      });
+      expect(res).toEqual({ kind: 'forbidden_path', path: src });
+    }
+  });
+
+  it('deletes the old voiceover file when it is replaced or removed', async () => {
+    const { id, src } = await projectWithVoiceover('tts-old.wav');
+    const next = voiceoverPath(aliceId, id, 'tts-new.wav');
+    await upload(alice, next);
+
+    const replaced = await updateProject(alice, aliceId, id, {
+      data: withVoiceover(next),
+      expectedRevision: 2,
+    });
+    expect(replaced.kind).toBe('ok');
+    expect(await exists(alice, src)).toBe(false);
+    expect(await exists(alice, next)).toBe(true);
+
+    const removed = await updateProject(alice, aliceId, id, {
+      data: createEmptyProject(),
+      expectedRevision: 3,
+    });
+    expect(removed.kind).toBe('ok');
+    expect(await exists(alice, next)).toBe(false);
+  });
+
+  it('keeps the voiceover file when a save conflicts', async () => {
+    const { id, src } = await projectWithVoiceover();
+    const stale = await updateProject(alice, aliceId, id, {
+      data: createEmptyProject(),
+      expectedRevision: 1,
+    });
+    expect(stale.kind).toBe('conflict');
+    expect(await exists(alice, src)).toBe(true);
+  });
+
+  it('duplicate copies the voiceover file into the new project', async () => {
+    const { id, src } = await projectWithVoiceover();
+    const copy = await duplicateProject(alice, aliceId, id);
+    const got = await getProject(alice, copy!.id);
+    if (got.kind !== 'ok') throw new Error('copy not found');
+
+    const copiedSrc = got.project.data.voiceover?.src;
+    expect(copiedSrc).toBe(voiceoverPath(aliceId, copy!.id, 'tts-1.wav'));
+    expect(await exists(alice, copiedSrc!)).toBe(true);
+
+    // Deleting the original removes its files but not the copy's.
+    expect(await deleteProject(alice, aliceId, id)).toBe(true);
+    expect(await exists(alice, src)).toBe(false);
+    expect(await exists(alice, copiedSrc!)).toBe(true);
+  });
+
+  it("can't read another user's voiceover file", async () => {
+    const { src } = await projectWithVoiceover();
+    const { data } = await bob.storage.from(MEDIA_BUCKET).download(src);
+    expect(data).toBeNull();
   });
 });

@@ -17,6 +17,10 @@ pnpm dev                            # http://localhost:3000
 cd services/worker && uv sync && uv run python -m app.main   # worker (separate terminal)
 ```
 
+The worker needs the Kokoro TTS model files (~350 MB). It downloads and verifies them on first
+start; to do it ahead of time, run `cd services/worker && uv run python -m app.model_files`.
+In Docker they're kept in the `worker-models` volume.
+
 Local URLs:
 
 - App: http://localhost:3000

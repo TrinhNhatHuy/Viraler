@@ -46,6 +46,8 @@ export const Voiceover = z.object({
   source: z.enum(['tts', 'recorded', 'uploaded']),
   voice: z.string().optional(),
   volume: z.number().min(0).max(1),
+  /** Hash of the script a TTS voiceover was generated from (detects a stale voiceover). */
+  scriptHash: z.string().optional(),
 });
 export type Voiceover = z.infer<typeof Voiceover>;
 

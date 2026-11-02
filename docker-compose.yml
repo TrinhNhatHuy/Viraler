@@ -43,6 +43,10 @@ services:
       # Inside the container 127.0.0.1 is the container itself; point at the host's Supabase.
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:54322/postgres}
       SUPABASE_URL: ${DOCKER_SUPABASE_URL:-http://host.docker.internal:54321}
+      MODELS_DIR: /models
+    volumes:
+      # Kokoro model files (~350 MB), downloaded on first start and kept across rebuilds.
+      - worker-models:/models
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     healthcheck:
@@ -57,3 +61,6 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
+volumes:
+  worker-models:
