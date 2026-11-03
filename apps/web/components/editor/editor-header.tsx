@@ -1,10 +1,13 @@
 'use client';
 
-import { ArrowLeftIcon, Redo2Icon, Undo2Icon } from 'lucide-react';
+import { ArrowLeftIcon, FilmIcon, Redo2Icon, Undo2Icon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { ExportDialog } from '@/components/export/export-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { projectDurationMs } from '@/lib/timeline/model';
 import { isDirty } from '@/stores/editor-store';
 import { useEditorStore, useEditorStoreApi } from './editor-store-provider';
 
@@ -43,8 +46,9 @@ export function EditorHeader({ saveNow }: { saveNow: () => Promise<void> }) {
         className="h-9 max-w-sm border-transparent text-base font-medium shadow-none hover:border-input"
       />
       <UndoRedo />
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-3">
         <SaveStatus onRetry={() => void saveNow()} />
+        <ExportButton />
       </div>
     </header>
   );
@@ -110,5 +114,18 @@ function SaveStatus({ onRetry }: { onRetry: () => void }) {
     <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
       {label}
     </span>
+  );
+}
+
+function ExportButton() {
+  const [open, setOpen] = useState(false);
+  const hasContent = useEditorStore((s) => projectDurationMs(s.project) > 0);
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)} disabled={!hasContent}>
+        <FilmIcon /> Export
+      </Button>
+      <ExportDialog open={open} onOpenChange={setOpen} />
+    </>
   );
 }

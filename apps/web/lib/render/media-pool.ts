@@ -1,11 +1,19 @@
 import type { MediaItem } from '@viraler/shared';
 import type { MediaUrlResolver } from '@/lib/media/urls';
 
-/** A drawable frame for a media item, or why there isn't one. */
-export type Frame =
-  { image: CanvasImageSource; width: number; height: number } | 'loading' | 'missing';
+type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-/** What the renderer draws clips from (the preview's pool now, an export decoder later). */
+/** A drawable frame (display size, after rotation), or why there isn't one. */
+export type Frame =
+  | {
+      width: number;
+      height: number;
+      draw(ctx: Ctx, x: number, y: number, w: number, h: number): void;
+    }
+  | 'loading'
+  | 'missing';
+
+/** What the renderer draws clips from: the preview's element pool, or the exporter's decoder. */
 export interface FrameSource {
   frame(mediaId: string): Frame;
 }
@@ -53,9 +61,11 @@ export class MediaPool implements FrameSource {
     const e = this.entries.get(mediaId);
     if (!e || e.failed) return 'missing';
     if (!e.ready) return 'loading';
-    const width = e.el instanceof HTMLVideoElement ? e.el.videoWidth : e.el.naturalWidth;
-    const height = e.el instanceof HTMLVideoElement ? e.el.videoHeight : e.el.naturalHeight;
-    return { image: e.el, width, height };
+    const el = e.el;
+    const width = el instanceof HTMLVideoElement ? el.videoWidth : el.naturalWidth;
+    const height = el instanceof HTMLVideoElement ? el.videoHeight : el.naturalHeight;
+    // <video>/<img> already apply rotation metadata.
+    return { width, height, draw: (ctx, x, y, w, h) => ctx.drawImage(el, x, y, w, h) };
   }
 
   /** Video elements by media id (for playback sync). */

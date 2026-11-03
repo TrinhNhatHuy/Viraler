@@ -15,7 +15,7 @@ export function drawClips(ctx: Ctx, project: Project, tMs: number, frames: Frame
     return;
   }
   const r = fitRect(frame.width, frame.height, CANVAS_WIDTH, CANVAS_HEIGHT, project.canvas.fit);
-  ctx.drawImage(frame.image, r.x, r.y, r.w, r.h);
+  frame.draw(ctx, r.x, r.y, r.w, r.h);
 }
 
 function drawNotice(ctx: Ctx, text: string) {

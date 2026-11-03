@@ -30,7 +30,7 @@ Goal: **$0 running cost.** Only free tiers and open-source models. Do not add pa
 | Styling | Tailwind CSS + shadcn/ui |
 | Editor state | Zustand |
 | Timeline & preview | HTML Canvas (custom) |
-| Video export | WebCodecs + mp4-muxer (ffmpeg.wasm only as fallback) |
+| Video export | WebCodecs + mediabunny (successor of the deprecated mp4-muxer; ffmpeg.wasm only as fallback) |
 | Validation | Zod (TS), Pydantic (Python) |
 | DB / Auth / Storage | Supabase (Postgres, Auth, Storage); Supabase CLI for local dev |
 | AI worker | Python 3.11 + FastAPI, managed with `uv` |

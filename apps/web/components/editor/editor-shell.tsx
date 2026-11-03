@@ -7,6 +7,7 @@ import { CanvasSettings } from './canvas-settings';
 import { CaptionsPanel } from './captions-panel';
 import { ConflictBanner } from './conflict-banner';
 import { EditorHeader } from './editor-header';
+import { OverlaysPanel } from './overlays-panel';
 import { Preview } from './preview';
 import { PreviewTransport } from './preview-transport';
 import { ScriptPanel } from './script-panel';
@@ -57,8 +58,9 @@ export function EditorShell() {
           </div>
           <PreviewTransport />
         </main>
-        <aside className="border-t p-4 md:border-t-0 md:border-l">
+        <aside className="grid content-start gap-6 border-t p-4 md:min-h-0 md:overflow-y-auto md:border-t-0 md:border-l">
           <CanvasSettings />
+          <OverlaysPanel />
         </aside>
       </div>
       <footer className="shrink-0 border-t px-3 py-2">

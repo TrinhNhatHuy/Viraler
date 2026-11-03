@@ -1,6 +1,7 @@
 from typing import Any
 
 import psycopg
+import pytest
 from psycopg.types.json import Jsonb
 
 from app.db import connect
@@ -40,20 +41,27 @@ def test_claim_marks_running_oldest_first(db, make_user) -> None:
     assert row["locked_at"] is not None
 
 
-def test_concurrent_claims_never_return_same_job(db, make_user, database_url) -> None:
-    uid = make_user()
-    a_id = insert_job(db, uid)
-    b_id = insert_job(db, uid)
+def test_concurrent_claims_never_return_same_job(
+    committed_db, make_committed_user, database_url
+) -> None:
+    from tests.conftest import TEST_APPLICATION_NAME, live_worker_connected
 
-    other = connect(database_url)
+    # Both connections must see the jobs, so they're committed: a live worker would grab them.
+    if live_worker_connected(committed_db):
+        pytest.skip("a worker is connected to this database; stop it to run this test")
+    uid = make_committed_user()
+    a_id = insert_job(committed_db, uid)
+    b_id = insert_job(committed_db, uid)
+
+    other = connect(database_url, application_name=TEST_APPLICATION_NAME)
     try:
         # Worker A claims inside an open transaction, so its row lock is held.
         with other.transaction():
             a = claim_job(other)
-            b = claim_job(db)  # worker B must skip A's locked row
+            b = claim_job(committed_db)  # worker B must skip A's locked row
             assert a is not None and b is not None
             assert {a.id, b.id} == {a_id, b_id}
-            assert claim_job(db) is None
+            assert claim_job(committed_db) is None
     finally:
         other.close()
 
@@ -125,19 +133,21 @@ def test_claim_filters_by_type(db, make_user) -> None:
     assert light is not None and light.id == search
 
 
-def test_queued_job_wakes_a_waiting_loop(db, make_user, database_url) -> None:
+def test_queued_job_wakes_a_waiting_loop(committed_db, make_committed_user, database_url) -> None:
     import threading
     import time
 
     from app.runner import NOTIFY_CHANNEL, wait_for_jobs
+    from tests.conftest import TEST_APPLICATION_NAME
 
-    uid = make_user()
-    listener = connect(database_url)
+    # NOTIFY is sent on commit, so these jobs are committed (a live worker may take them).
+    uid = make_committed_user()
+    listener = connect(database_url, application_name=TEST_APPLICATION_NAME)
     try:
         listener.execute(f"listen {NOTIFY_CHANNEL}")
         # A job of another type doesn't wake it; ours does, long before the timeout.
-        threading.Timer(0.2, lambda: insert_job(db, uid, "tts")).start()
-        threading.Timer(0.4, lambda: insert_job(db, uid, "stock_search")).start()
+        threading.Timer(0.2, lambda: insert_job(committed_db, uid, "tts")).start()
+        threading.Timer(0.4, lambda: insert_job(committed_db, uid, "stock_search")).start()
         started = time.monotonic()
         assert wait_for_jobs(listener, 5.0, ("stock_search",)) is True
         assert 0.3 < time.monotonic() - started < 2.0

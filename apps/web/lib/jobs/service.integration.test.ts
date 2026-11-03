@@ -122,9 +122,19 @@ describe.skipIf(!available)('jobs service (local Supabase)', () => {
   it(`caps active jobs at ${MAX_ACTIVE_JOBS_PER_USER} per user`, async () => {
     const carol = await user();
     const project = await createProject(carol.db, { data: createEmptyProject() });
-    for (let i = 0; i < MAX_ACTIVE_JOBS_PER_USER; i++) {
-      expect((await createJob(carol.db, admin, carol.id, tts(project.id))).kind).toBe('ok');
-    }
+    // Fill the caps with rows marked running: a worker that happens to be up
+    // only claims queued jobs, so it can't finish them and free the cap mid-test.
+    const busy = (type: 'tts' | 'stock_search', n: number) =>
+      admin.from('jobs').insert(
+        Array.from({ length: n }, () => ({
+          user_id: carol.id,
+          project_id: project.id,
+          type,
+          status: 'running',
+          input: {},
+        })),
+      );
+    await busy('tts', MAX_ACTIVE_JOBS_PER_USER);
     expect(await createJob(carol.db, admin, carol.id, tts(project.id))).toEqual({
       kind: 'too_many_active',
       limit: MAX_ACTIVE_JOBS_PER_USER,
@@ -137,9 +147,8 @@ describe.skipIf(!available)('jobs service (local Supabase)', () => {
       projectId: project.id,
       input: { query: 'ocean', kind: 'video' as const, page: 1 },
     };
-    for (let i = 0; i < MAX_ACTIVE_SEARCHES_PER_USER; i++) {
-      expect((await createJob(carol.db, admin, carol.id, search)).kind).toBe('ok');
-    }
+    expect((await createJob(carol.db, admin, carol.id, search)).kind).toBe('ok');
+    await busy('stock_search', MAX_ACTIVE_SEARCHES_PER_USER);
     expect(await createJob(carol.db, admin, carol.id, search)).toEqual({
       kind: 'too_many_active',
       limit: MAX_ACTIVE_SEARCHES_PER_USER,
