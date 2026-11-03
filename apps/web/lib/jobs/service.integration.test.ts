@@ -1,6 +1,6 @@
 /** Jobs service against local Supabase (skips if it isn't running). */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createEmptyProject, MAX_ACTIVE_JOBS_PER_USER } from '@viraler/shared';
+import { createEmptyProject, MAX_ACTIVE_JOBS_PER_USER, voiceoverPath } from '@viraler/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createProject } from '@/lib/projects/repo';
 import type { Database } from '@/lib/supabase/database.types';
@@ -84,6 +84,34 @@ describe.skipIf(!available)('jobs service (local Supabase)', () => {
     if (res.kind !== 'ok') throw new Error(res.kind);
     expect(await getJob(bob!.db, res.job.id)).toBeNull();
     expect(await listJobs(bob!.db, { projectId: project.id, activeOnly: false })).toEqual([]);
+  });
+
+  it('queues a transcribe job only for audio in the same project', async () => {
+    const [alice, bob] = users;
+    const project = await createProject(alice!.db, { data: createEmptyProject() });
+    const other = await createProject(alice!.db, { data: createEmptyProject() });
+    const transcribe = (audioPath: string) => ({
+      type: 'transcribe' as const,
+      projectId: project.id,
+      input: { audioPath, script: 'Hello' },
+    });
+
+    const own = voiceoverPath(alice!.id, project.id, 'tts-1.wav');
+    const res = await createJob(alice!.db, admin, alice!.id, transcribe(own));
+    if (res.kind !== 'ok') throw new Error(res.kind);
+    expect(res.job).toMatchObject({ type: 'transcribe', status: 'queued' });
+    expect(res.job.input).toEqual({ audioPath: own, script: 'Hello' });
+
+    for (const path of [
+      voiceoverPath(bob!.id, project.id, 'x.wav'),
+      voiceoverPath(alice!.id, other.id, 'x.wav'),
+      `${alice!.id}/${project.id}/../${other.id}/voiceover/x.wav`,
+    ]) {
+      expect(await createJob(alice!.db, admin, alice!.id, transcribe(path))).toEqual({
+        kind: 'forbidden_path',
+        path,
+      });
+    }
   });
 
   it(`caps active jobs at ${MAX_ACTIVE_JOBS_PER_USER} per user`, async () => {

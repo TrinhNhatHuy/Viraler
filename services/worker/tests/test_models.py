@@ -6,7 +6,14 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
-from app.models import JOB_INPUT_BY_TYPE, SCRIPT_MAX_CHARS, Project, VoiceId
+from app.models import (
+    JOB_INPUT_BY_TYPE,
+    SCRIPT_MAX_CHARS,
+    Project,
+    TranscribeInput,
+    TranscribeOutput,
+    VoiceId,
+)
 
 SHARED = Path(__file__).resolve().parents[3] / "packages/shared"
 FIXTURE = SHARED / "fixtures/project.sample.json"
@@ -73,3 +80,33 @@ def test_voice_ids_match_shared_voices_json() -> None:
 
 def test_fixture_keeps_script_hash(sample: dict) -> None:
     assert Project.model_validate(sample).voiceover.script_hash == sample["voiceover"]["scriptHash"]
+
+
+def test_fixture_keeps_captions_voiceover_src(sample: dict) -> None:
+    captions = Project.model_validate(sample).captions
+    assert captions.voiceover_src == sample["captions"]["voiceoverSrc"]
+
+
+def test_transcribe_input_defaults_script() -> None:
+    assert TranscribeInput.model_validate({"audioPath": "a"}).script == ""
+    with pytest.raises(ValidationError):
+        TranscribeInput.model_validate({"audioPath": "a", "script": "x" * (SCRIPT_MAX_CHARS + 1)})
+
+
+def test_transcribe_output_uses_camel_case() -> None:
+    out = TranscribeOutput.model_validate(
+        {
+            "audioPath": "a",
+            "words": [{"text": "Hi", "startMs": 0, "endMs": 100}],
+            "language": "en",
+            "aligned": True,
+            "durationMs": 100,
+        }
+    )
+    assert set(out.model_dump(by_alias=True)) == {
+        "audioPath",
+        "words",
+        "language",
+        "aligned",
+        "durationMs",
+    }

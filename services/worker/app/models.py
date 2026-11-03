@@ -13,6 +13,9 @@ SCRIPT_MAX_CHARS = 5000
 MAX_JOB_ATTEMPTS = 3
 TTS_SPEED_MIN = 0.5
 TTS_SPEED_MAX = 2.0
+# packages/shared/src/limits.ts
+MAX_AUDIO_BYTES = 25 * 1024 * 1024
+MAX_AUDIO_DURATION_MS = 10 * 60 * 1000
 
 Ms = Annotated[int, Field(ge=0, strict=True)]
 HexColor = Annotated[str, Field(pattern=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")]
@@ -75,6 +78,7 @@ class Captions(CamelModel):
     enabled: StrictBool
     words: list[CaptionWord]
     style: CaptionStyle
+    voiceover_src: str | None = None
 
 
 class HookTitle(CamelModel):
@@ -162,6 +166,15 @@ class TtsOutput(CamelModel):
 
 class TranscribeInput(CamelModel):
     audio_path: Annotated[str, Field(min_length=1)]
+    script: Annotated[str, Field(max_length=SCRIPT_MAX_CHARS)] = ""
+
+
+class TranscribeOutput(CamelModel):
+    audio_path: Annotated[str, Field(min_length=1)]
+    words: list[CaptionWord]
+    language: str
+    aligned: StrictBool
+    duration_ms: Ms
 
 
 class StockSearchInput(CamelModel):

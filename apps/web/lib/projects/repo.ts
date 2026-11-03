@@ -223,7 +223,14 @@ export async function duplicateProject(
     copiedPath = voiceoverPath(userId, newId, src.split('/').pop()!);
     const { error: copyError } = await db.storage.from(MEDIA_BUCKET).copy(src, copiedPath);
     if (copyError) throw new RepoError(`copy voiceover: ${copyError.message}`, undefined);
-    data = toJson({ ...parsed.data, voiceover: { ...parsed.data.voiceover, src: copiedPath } });
+    const { captions } = parsed.data;
+    data = toJson({
+      ...parsed.data,
+      voiceover: { ...parsed.data.voiceover, src: copiedPath },
+      // Captions timed against the original file are just as valid for the copy.
+      captions:
+        captions.voiceoverSrc === src ? { ...captions, voiceoverSrc: copiedPath } : captions,
+    });
   }
 
   const { data: row, error: insertError } = await db

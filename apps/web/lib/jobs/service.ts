@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ACTIVE_JOB_STATUSES,
   type CreateJobBody,
+  isInProjectFolder,
   type JobView,
   MAX_ACTIVE_JOBS_PER_USER,
 } from '@viraler/shared';
@@ -50,6 +51,7 @@ function toView(row: ViewRow): JobView {
 export type CreateJobResult =
   | { kind: 'ok'; job: JobView }
   | { kind: 'project_not_found' }
+  | { kind: 'forbidden_path'; path: string }
   | { kind: 'too_many_active'; limit: number };
 
 /**
@@ -62,6 +64,15 @@ export async function createJob(
   userId: string,
   body: CreateJobBody,
 ): Promise<CreateJobResult> {
+  // The worker reads files with the service role, so a job may only point at
+  // files in its own project's folder.
+  if (
+    body.type === 'transcribe' &&
+    !isInProjectFolder(body.input.audioPath, userId, body.projectId)
+  ) {
+    return { kind: 'forbidden_path', path: body.input.audioPath };
+  }
+
   const { data: project, error: projectError } = await userDb
     .from('projects')
     .select('id')

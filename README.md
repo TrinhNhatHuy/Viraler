@@ -17,9 +17,10 @@ pnpm dev                            # http://localhost:3000
 cd services/worker && uv sync && uv run python -m app.main   # worker (separate terminal)
 ```
 
-The worker needs the Kokoro TTS model files (~350 MB). It downloads and verifies them on first
-start; to do it ahead of time, run `cd services/worker && uv run python -m app.model_files`.
-In Docker they're kept in the `worker-models` volume.
+The worker needs model files: Kokoro for TTS (~350 MB) and Whisper `small.en` for captions
+(~480 MB). It downloads and verifies them (pinned sha256) on first start; to do it ahead of time,
+run `cd services/worker && uv run python -m app.model_files`. In Docker they're kept in the
+`worker-models` volume. Set `WHISPER_MODEL=base.en` for a smaller, faster captions model.
 
 Local URLs:
 

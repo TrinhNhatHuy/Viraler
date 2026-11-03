@@ -17,6 +17,10 @@ export async function POST(req: Request) {
       return Response.json(result.job, { status: 201 });
     case 'project_not_found':
       return apiError(404, 'not_found', { message: 'Project not found.' });
+    case 'forbidden_path':
+      return apiError(400, 'invalid_storage_path', {
+        message: 'Audio must be a file in this project.',
+      });
     case 'too_many_active':
       return apiError(429, 'too_many_jobs', {
         message: `You can have at most ${MAX_ACTIVE_JOBS_PER_USER} jobs running. Wait for one to finish.`,

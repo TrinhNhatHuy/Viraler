@@ -1,5 +1,6 @@
-export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
-export const MAX_AUDIO_DURATION_MS = 10 * 60 * 1000;
+import { MAX_AUDIO_BYTES } from '@viraler/shared';
+
+export { MAX_AUDIO_BYTES, MAX_AUDIO_DURATION_MS } from '@viraler/shared';
 
 /** MIME type (without parameters) → file extension for stored voiceovers. */
 const EXTENSIONS: Record<string, string> = {

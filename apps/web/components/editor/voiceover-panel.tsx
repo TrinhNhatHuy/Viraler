@@ -1,8 +1,7 @@
 'use client';
 
 import { voiceLabel } from '@viraler/shared';
-import { Trash2Icon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { PauseIcon, PlayIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -10,10 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { scriptHash } from '@/lib/script/hash';
 import { formatDuration } from '@/lib/script/stats';
 import { AudioUpload } from './audio-upload';
-import { useEditorStore } from './editor-store-provider';
+import { useEditorStore, usePlayback, usePlaybackApi } from './editor-store-provider';
 import { Recorder } from './recorder';
 import { TtsForm } from './tts-form';
-import { useSignedUrl } from './use-signed-url';
 import { withoutVoiceover } from './voiceover-actions';
 
 const SOURCE_LABEL = { tts: 'AI voice', recorded: 'Recorded', uploaded: 'Uploaded' } as const;
@@ -48,13 +46,7 @@ function CurrentVoiceover() {
   const voiceover = useEditorStore((s) => s.project.voiceover);
   const script = useEditorStore((s) => s.project.script);
   const updateProject = useEditorStore((s) => s.updateProject);
-  const { url, error, refresh } = useSignedUrl(voiceover?.src ?? null);
-  const audioRef = useRef<HTMLAudioElement>(null);
   const volume = voiceover?.volume ?? 1;
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume;
-  }, [volume, url]);
 
   if (!voiceover) {
     return (
@@ -89,12 +81,7 @@ function CurrentVoiceover() {
         </Button>
       </div>
 
-      {url ? (
-        <audio ref={audioRef} controls src={url} onError={refresh} className="w-full" />
-      ) : (
-        <div className="h-10 animate-pulse rounded bg-muted" aria-label="Loading audio" />
-      )}
-      {error && <p className="text-xs text-destructive">Couldn&apos;t load audio: {error}</p>}
+      <PlayRow durationMs={voiceover.durationMs} />
 
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
@@ -123,6 +110,36 @@ function CurrentVoiceover() {
           The script changed since this voiceover was generated. Regenerate it below to match.
         </p>
       )}
+    </div>
+  );
+}
+
+/** Plays the voiceover through the editor's shared player (same as the preview transport). */
+function PlayRow({ durationMs }: { durationMs: number }) {
+  const playback = usePlaybackApi();
+  const playing = usePlayback((s) => s.playing);
+  const positionMs = usePlayback((s) => s.positionMs);
+  const status = usePlayback((s) => s.status);
+
+  if (status === 'error') {
+    return <p className="text-xs text-destructive">Couldn&apos;t load the voiceover audio.</p>;
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => playback.getState().toggle()}
+        disabled={status === 'empty'}
+      >
+        {playing ? <PauseIcon /> : <PlayIcon />}
+        {playing ? 'Pause' : 'Play'}
+      </Button>
+      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+        {status === 'loading'
+          ? 'Loading…'
+          : `${formatDuration(positionMs)} / ${formatDuration(durationMs)}`}
+      </span>
     </div>
   );
 }

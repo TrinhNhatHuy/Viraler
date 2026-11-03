@@ -8,7 +8,7 @@ import {
   type VoiceId,
   voiceLabel,
 } from '@viraler/shared';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -21,11 +21,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { createJobRequest, fetchRecentJobsRequest } from '@/lib/jobs/client';
 import { scriptHash } from '@/lib/script/hash';
 import { countWords, estimateDurationMs, formatDuration } from '@/lib/script/stats';
 import { useEditorStore, useEditorStoreApi } from './editor-store-provider';
-import { useJobPolling } from './use-job';
+import { useProjectJob } from './use-project-job';
 import { withVoiceover } from './voiceover-actions';
 
 const VOICE_ITEMS = Object.fromEntries(VOICES.map((v) => [v.id, voiceLabel(v.id)]));
@@ -46,9 +45,6 @@ export function TtsForm() {
     currentVoice && currentVoice in VOICE_ITEMS ? currentVoice : DEFAULT_VOICE,
   );
   const [speed, setSpeed] = useState(1);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const apply = useCallback(
     (job: JobView) => {
@@ -70,51 +66,21 @@ export function TtsForm() {
     [updateProject],
   );
 
-  const onSettled = useCallback(
-    (job: JobView) => {
-      setJobId(null);
-      if (job.status === 'done') apply(job);
-      else setError(job.error ?? 'Voiceover generation failed.');
-    },
-    [apply],
-  );
-  const { job, stalled } = useJobPolling(jobId, onSettled);
+  const { start, job, busy, stalled, error } = useProjectJob({
+    type: 'tts',
+    onDone: apply,
+    failedMessage: 'Voiceover generation failed.',
+  });
 
-  // On open: resume a running TTS job, or apply one that finished while the editor was closed.
-  useEffect(() => {
-    let cancelled = false;
-    void fetchRecentJobsRequest(projectId).then((res) => {
-      if (cancelled || !res.ok) return;
-      const latest = res.value.jobs.find((j) => j.type === 'tts');
-      if (!latest) return;
-      if (latest.status === 'queued' || latest.status === 'running') {
-        setJobId(latest.id);
-      } else if (latest.status === 'done') {
-        const { loadedUpdatedAt } = store.getState();
-        if (loadedUpdatedAt && latest.updatedAt > loadedUpdatedAt) apply(latest);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [projectId, store, apply]);
-
-  const generate = async () => {
-    setError(null);
-    setCreating(true);
-    const res = await createJobRequest({
+  const generate = () =>
+    start({
       type: 'tts',
       projectId,
       input: { text: store.getState().project.script, voice, speed },
     });
-    setCreating(false);
-    if (res.ok) setJobId(res.value.id);
-    else setError(res.message);
-  };
 
-  const busy = creating || jobId !== null;
   const words = countWords(script);
-  const status = !jobId
+  const status = !busy
     ? null
     : stalled
       ? 'Still waiting for the worker. Is it running?'

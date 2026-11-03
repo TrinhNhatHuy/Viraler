@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { CreateJobBody, Job, JobInputByType, JobType, JobView, TtsInput, TtsOutput } from './job';
+import {
+  CreateJobBody,
+  Job,
+  JobInputByType,
+  JobType,
+  JobView,
+  TranscribeInput,
+  TranscribeOutput,
+  TtsInput,
+  TtsOutput,
+} from './job';
 import { VOICES } from './voices';
 
 const row = {
@@ -70,6 +80,12 @@ describe('CreateJobBody', () => {
     expect(CreateJobBody.safeParse(body).success).toBe(true);
   });
 
+  it('accepts a transcribe job and defaults the script to empty', () => {
+    const body = { type: 'transcribe', projectId, input: { audioPath: 'u/p/voiceover/a.wav' } };
+    const parsed = CreateJobBody.parse(body);
+    expect(parsed.input).toEqual({ audioPath: 'u/p/voiceover/a.wav', script: '' });
+  });
+
   it('rejects job types the API does not accept yet', () => {
     const body = { type: 'render', projectId, input: { projectId } };
     expect(CreateJobBody.safeParse(body).success).toBe(false);
@@ -102,5 +118,39 @@ describe('JobView / TtsOutput', () => {
     };
     expect(JobView.safeParse(view).success).toBe(true);
     expect(TtsOutput.safeParse(view.output).success).toBe(true);
+  });
+});
+
+describe('TranscribeInput / TranscribeOutput', () => {
+  it('requires an audio path and caps the script length', () => {
+    expect(TranscribeInput.safeParse({ audioPath: '' }).success).toBe(false);
+    expect(TranscribeInput.safeParse({ audioPath: 'a', script: 'x'.repeat(5001) }).success).toBe(
+      false,
+    );
+  });
+
+  it('parses an output with word timings', () => {
+    const output = {
+      audioPath: 'u/p/voiceover/a.wav',
+      words: [
+        { text: 'Top', startMs: 0, endMs: 250 },
+        { text: '3', startMs: 250, endMs: 500 },
+      ],
+      language: 'en',
+      aligned: true,
+      durationMs: 600,
+    };
+    expect(TranscribeOutput.parse(output)).toEqual(output);
+  });
+
+  it('rejects words that end before they start', () => {
+    const output = {
+      audioPath: 'a',
+      words: [{ text: 'x', startMs: 10, endMs: 5 }],
+      language: 'en',
+      aligned: false,
+      durationMs: 10,
+    };
+    expect(TranscribeOutput.safeParse(output).success).toBe(false);
   });
 });

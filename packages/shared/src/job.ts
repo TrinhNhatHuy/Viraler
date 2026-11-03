@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SCRIPT_MAX_CHARS } from './project';
+import { CaptionWord, Ms, SCRIPT_MAX_CHARS } from './project';
 import { VoiceId } from './voices';
 
 export const JobType = z.enum(['tts', 'transcribe', 'stock_search', 'image', 'render']);
@@ -33,10 +33,25 @@ export const TtsOutput = z.object({
 });
 export type TtsOutput = z.infer<typeof TtsOutput>;
 
-// Fleshed out in the phase that implements each job.
 export const TranscribeInput = z.object({
+  /** Storage key of the voiceover; must be inside the job's project folder. */
   audioPath: z.string().min(1),
+  /** Script the captions are aligned to (empty = use the raw transcript). */
+  script: z.string().max(SCRIPT_MAX_CHARS).default(''),
 });
+export type TranscribeInput = z.infer<typeof TranscribeInput>;
+
+export const TranscribeOutput = z.object({
+  audioPath: z.string().min(1),
+  words: z.array(CaptionWord),
+  language: z.string(),
+  /** True if the words are the script's text with Whisper's timing; false = raw transcript. */
+  aligned: z.boolean(),
+  durationMs: Ms,
+});
+export type TranscribeOutput = z.infer<typeof TranscribeOutput>;
+
+// Fleshed out in the phase that implements each job.
 export const StockSearchInput = z.object({
   query: z.string().min(1).max(200),
   kind: z.enum(['video', 'image']),
@@ -79,6 +94,7 @@ export type Job = z.infer<typeof Job>;
 /** Job types the web API accepts so far. Others are added as their phase lands. */
 export const CreateJobBody = z.discriminatedUnion('type', [
   z.object({ type: z.literal('tts'), projectId: z.uuid(), input: TtsInput }),
+  z.object({ type: z.literal('transcribe'), projectId: z.uuid(), input: TranscribeInput }),
 ]);
 export type CreateJobBody = z.infer<typeof CreateJobBody>;
 

@@ -16,3 +16,11 @@ export function formatRelativeTime(iso: string, now: Date = new Date()): string 
   }
   return 'just now';
 }
+
+/** 1_250 → "0:01.2"; 83_960 → "1:23.9" (tenths, rounded down). */
+export function formatTimecode(ms: number): string {
+  const tenths = Math.floor(Math.max(0, ms) / 100);
+  const m = Math.floor(tenths / 600);
+  const s = Math.floor((tenths % 600) / 10);
+  return `${m}:${String(s).padStart(2, '0')}.${tenths % 10}`;
+}

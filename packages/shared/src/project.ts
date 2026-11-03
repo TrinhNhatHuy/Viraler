@@ -64,6 +64,8 @@ export const Captions = z.object({
   enabled: z.boolean(),
   words: z.array(CaptionWord),
   style: CaptionStyle,
+  /** Voiceover file the words were timed against (detects stale captions). */
+  voiceoverSrc: z.string().optional(),
 });
 export type Captions = z.infer<typeof Captions>;
 

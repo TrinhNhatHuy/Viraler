@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from app.storage import StorageClient, voiceover_path
+from app.storage import ObjectTooLargeError, StorageClient, is_in_project_folder, voiceover_path
 
 
 def test_voiceover_path_layout() -> None:
@@ -45,3 +45,45 @@ def test_upload_raises_on_http_error() -> None:
 def test_requires_credentials() -> None:
     with pytest.raises(ValueError):
         StorageClient("", "")
+
+
+def _client(handler) -> StorageClient:
+    return StorageClient(
+        "http://supabase.test",
+        "secret",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+
+def test_download_returns_the_body() -> None:
+    client = _client(lambda r: httpx.Response(200, content=b"RIFFdata"))
+    assert client.download("media", "u1/p1/voiceover/a.wav") == b"RIFFdata"
+
+
+def test_download_enforces_max_bytes() -> None:
+    client = _client(lambda r: httpx.Response(200, content=b"x" * 100))
+    assert client.download("media", "a.wav", max_bytes=100) == b"x" * 100
+    with pytest.raises(ObjectTooLargeError):
+        client.download("media", "a.wav", max_bytes=99)
+
+
+def test_download_raises_on_missing_object() -> None:
+    client = _client(lambda r: httpx.Response(400, json={"error": "not_found"}))
+    with pytest.raises(httpx.HTTPStatusError):
+        client.download("media", "missing.wav")
+
+
+@pytest.mark.parametrize(
+    ("path", "inside"),
+    [
+        ("u1/p1/voiceover/a.wav", True),
+        ("u1/p1/a.wav", True),
+        ("u1/p2/voiceover/a.wav", False),
+        ("u2/p1/voiceover/a.wav", False),
+        ("u1/p1/../p2/a.wav", False),
+        ("u1/p1", False),
+        ("u1/p10/a.wav", False),
+    ],
+)
+def test_is_in_project_folder(path: str, inside: bool) -> None:
+    assert is_in_project_folder(path, "u1", "p1") is inside

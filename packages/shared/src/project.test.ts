@@ -19,6 +19,12 @@ describe('Project schema', () => {
     expect(Project.safeParse(p).success).toBe(true);
   });
 
+  it('accepts captions without a voiceoverSrc', () => {
+    const p = clone(sample);
+    delete (p.captions as { voiceoverSrc?: string }).voiceoverSrc;
+    expect(Project.safeParse(p).success).toBe(true);
+  });
+
   it('rejects negative times', () => {
     const p = clone(sample);
     p.clips[0]!.startMs = -1;

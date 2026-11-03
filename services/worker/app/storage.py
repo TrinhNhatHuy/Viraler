@@ -14,6 +14,16 @@ def voiceover_path(user_id: str, project_id: str, file_name: str) -> str:
     return f"{user_id}/{project_id}/voiceover/{file_name}"
 
 
+def is_in_project_folder(path: str, user_id: str, project_id: str) -> bool:
+    """True if `path` is a file inside the project's folder tree (no `..` escapes)."""
+    prefix = f"{user_id}/{project_id}/"
+    return path.startswith(prefix) and ".." not in path[len(prefix) :].split("/")
+
+
+class ObjectTooLargeError(Exception):
+    pass
+
+
 class StorageClient:
     def __init__(self, url: str, service_key: str, *, client: httpx.Client | None = None) -> None:
         if not url or not service_key:
@@ -38,7 +48,19 @@ class StorageClient:
         )
         res.raise_for_status()
 
-    def download(self, bucket: str, path: str) -> bytes:
-        res = self._client.get(f"{self._base}/object/{bucket}/{quote(path)}", headers=self._headers)
-        res.raise_for_status()
-        return res.content
+    def download(self, bucket: str, path: str, *, max_bytes: int | None = None) -> bytes:
+        """Downloads an object. Raises on HTTP errors, ObjectTooLargeError past `max_bytes`."""
+        url = f"{self._base}/object/{bucket}/{quote(path)}"
+        with self._client.stream("GET", url, headers=self._headers) as res:
+            res.raise_for_status()
+            declared = int(res.headers.get("content-length") or 0)
+            if max_bytes is not None and declared > max_bytes:
+                raise ObjectTooLargeError(f"{path} is {declared} bytes (max {max_bytes})")
+            chunks: list[bytes] = []
+            size = 0
+            for chunk in res.iter_bytes():
+                size += len(chunk)
+                if max_bytes is not None and size > max_bytes:
+                    raise ObjectTooLargeError(f"{path} is over {max_bytes} bytes")
+                chunks.append(chunk)
+            return b"".join(chunks)

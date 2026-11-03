@@ -276,6 +276,30 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
     expect(await exists(alice, copiedSrc!)).toBe(true);
   });
 
+  it('duplicate points captions at the copied voiceover', async () => {
+    const created = await createProject(alice, { data: createEmptyProject() });
+    const src = voiceoverPath(aliceId, created.id, 'tts-1.wav');
+    await upload(alice, src);
+    const data = withVoiceover(src);
+    data.captions = {
+      ...data.captions,
+      words: [{ text: 'Hi', startMs: 0, endMs: 300 }],
+      voiceoverSrc: src,
+    };
+    expect(
+      (await updateProject(alice, aliceId, created.id, { data, expectedRevision: 1 })).kind,
+    ).toBe('ok');
+
+    const copy = await duplicateProject(alice, aliceId, created.id);
+    const got = await getProject(alice, copy!.id);
+    if (got.kind !== 'ok') throw new Error('copy not found');
+    expect(got.project.data.captions.voiceoverSrc).toBe(got.project.data.voiceover?.src);
+    expect(got.project.data.captions.voiceoverSrc).toBe(
+      voiceoverPath(aliceId, copy!.id, 'tts-1.wav'),
+    );
+    expect(got.project.data.captions.words).toEqual(data.captions.words);
+  });
+
   it("can't read another user's voiceover file", async () => {
     const { src } = await projectWithVoiceover();
     const { data } = await bob.storage.from(MEDIA_BUCKET).download(src);

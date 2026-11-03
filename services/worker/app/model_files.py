@@ -1,4 +1,5 @@
-"""Kokoro model files: pinned by URL + sha256, downloaded once into MODELS_DIR.
+"""Model files (Kokoro TTS, Whisper ASR): pinned by URL + sha256, downloaded once
+into MODELS_DIR.
 
 Run `uv run python -m app.model_files` to download ahead of time.
 """
@@ -51,6 +52,55 @@ VOICES_FILE = ModelFile(
     f"{_RELEASE}/voices-v1.0.bin",
     "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d",
 )
+
+# --- Whisper (CTranslate2 conversions by Systran, pinned to a commit) ----------
+
+WhisperModelName = Literal["small.en", "base.en"]
+
+_HF = "https://huggingface.co"
+
+
+@dataclass(frozen=True)
+class WhisperSpec:
+    repo: str
+    commit: str
+    files: tuple[ModelFile, ...]
+
+
+def _hf_files(repo: str, commit: str, sha256: dict[str, str]) -> WhisperSpec:
+    files = tuple(
+        ModelFile(name, f"{_HF}/{repo}/resolve/{commit}/{name}", digest)
+        for name, digest in sha256.items()
+    )
+    return WhisperSpec(repo, commit, files)
+
+
+# tokenizer.json and vocabulary.txt are identical for the English-only models.
+_EN_TOKENIZER = "929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df"
+_EN_VOCABULARY = "ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf"
+
+WHISPER_MODELS: dict[WhisperModelName, WhisperSpec] = {
+    "small.en": _hf_files(
+        "Systran/faster-whisper-small.en",
+        "d1d751a5f8271d482d14ca55d9e2deeebbae577f",
+        {
+            "config.json": "666a9605530ac1f61fa8177f3702b4dacec9966749e42610839fcc32661d5fae",
+            "model.bin": "62b2a45b05ee59acb4a5341b33ee35e041395d378d418a18acfe4c9e768ee37a",
+            "tokenizer.json": _EN_TOKENIZER,
+            "vocabulary.txt": _EN_VOCABULARY,
+        },
+    ),
+    "base.en": _hf_files(
+        "Systran/faster-whisper-base.en",
+        "3d3d5dee26484f91867d81cb899cfcf72b96be6c",
+        {
+            "config.json": "f3bc3821e9fc76a27bae538e11ae5b677dcdd352b4600429ce7951d398569aeb",
+            "model.bin": "2a166925539a16005f14ff328359f9b9adb9dc4fb631bb3b227526862e93e2ef",
+            "tokenizer.json": _EN_TOKENIZER,
+            "vocabulary.txt": _EN_VOCABULARY,
+        },
+    ),
+}
 
 # Streams the body of `url` as byte chunks. Swappable in tests.
 Downloader = Callable[[str], Iterator[bytes]]
@@ -117,10 +167,22 @@ def ensure_model_files(
     return model, voices
 
 
+def ensure_whisper_model(
+    directory: Path, name: WhisperModelName, download: Downloader = _http_download
+) -> Path:
+    """Returns the folder holding a verified copy of the Whisper model (loadable by path)."""
+    folder = directory / "whisper" / name
+    for spec in WHISPER_MODELS[name].files:
+        ensure_file(folder, spec, download)
+    return folder
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     from app.config import get_settings
 
     settings = get_settings()
-    model, voices = ensure_model_files(Path(settings.models_dir), settings.kokoro_model)
-    print(f"ready: {model}\n       {voices}", file=sys.stderr)
+    models_dir = Path(settings.models_dir)
+    model, voices = ensure_model_files(models_dir, settings.kokoro_model)
+    whisper = ensure_whisper_model(models_dir, settings.whisper_model)
+    print(f"ready: {model}\n       {voices}\n       {whisper}", file=sys.stderr)

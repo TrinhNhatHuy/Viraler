@@ -28,7 +28,8 @@
       "uppercase": true,
       "highlightColor": "#ffd400",
       "maxWordsPerLine": 3
-    }
+    },
+    "voiceoverSrc": "user-id/project-id/voiceover.wav"
   },
   "hookTitle": {
     "enabled": true,
