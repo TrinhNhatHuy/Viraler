@@ -1,4 +1,4 @@
-import { CreateJobBody, MAX_ACTIVE_JOBS_PER_USER } from '@viraler/shared';
+import { CreateJobBody } from '@viraler/shared';
 import type { NextRequest } from 'next/server';
 import { apiError, isUuid, parseJson, requireApiUser } from '@/lib/api/http';
 import { createJob, listJobs } from '@/lib/jobs/service';
@@ -23,7 +23,9 @@ export async function POST(req: Request) {
       });
     case 'too_many_active':
       return apiError(429, 'too_many_jobs', {
-        message: `You can have at most ${MAX_ACTIVE_JOBS_PER_USER} jobs running. Wait for one to finish.`,
+        message: result.search
+          ? 'A search is already running. Wait for it to finish.'
+          : `You can have at most ${result.limit} jobs running. Wait for one to finish.`,
       });
   }
 }

@@ -133,3 +133,108 @@ describe('editor store', () => {
     expect(isDirty(s)).toBe(false);
   });
 });
+
+describe('undo / redo', () => {
+  const withScript = (script: string) => (p: Project) => ({ ...p, script });
+
+  function clocked() {
+    let t = 0;
+    const store = createEditorStore(
+      { id: 'p1', userId: 'u1', title: 'Video', project: createEmptyProject(), revision: 1 },
+      { now: () => t },
+    );
+    return { store, tick: (ms: number) => (t += ms) };
+  }
+
+  it('undoes and redoes each edit, marking the project dirty', () => {
+    const { store } = clocked();
+    const s = () => store.getState();
+    s().updateProject(withFit('fit'));
+    s().updateProject(withScript('hello'));
+    const saved = s().beginSave()!;
+    s().saveSucceeded(saved, 2);
+    expect(isDirty(s())).toBe(false);
+
+    s().undo();
+    expect(s().project.script).toBe('');
+    expect(s().project.canvas.fit).toBe('fit');
+    expect(isDirty(s())).toBe(true);
+    s().undo();
+    expect(s().project.canvas.fit).toBe('fill');
+    s().undo(); // nothing left
+    expect(s().past).toHaveLength(0);
+
+    s().redo();
+    s().redo();
+    expect(s().project).toMatchObject({ script: 'hello', canvas: { fit: 'fit' } });
+    expect(s().future).toHaveLength(0);
+  });
+
+  it('merges same-key edits within a second', () => {
+    const { store, tick } = clocked();
+    const s = () => store.getState();
+    s().updateProject(withScript('h'), { key: 'script' });
+    tick(300);
+    s().updateProject(withScript('he'), { key: 'script' });
+    tick(300);
+    s().updateProject(withScript('hey'), { key: 'script' });
+    expect(s().past).toHaveLength(1);
+    tick(1500);
+    s().updateProject(withScript('hey!'), { key: 'script' });
+    expect(s().past).toHaveLength(2);
+    s().undo();
+    expect(s().project.script).toBe('hey');
+    s().undo();
+    expect(s().project.script).toBe('');
+  });
+
+  it('does not merge different keys or unkeyed edits', () => {
+    const { store } = clocked();
+    const s = () => store.getState();
+    s().updateProject(withScript('a'), { key: 'script' });
+    s().updateProject(withFit('fit'), { key: 'fit' });
+    s().updateProject(withScript('b'));
+    s().updateProject(withScript('c'));
+    expect(s().past).toHaveLength(4);
+  });
+
+  it('makes a gesture one step', () => {
+    const { store } = clocked();
+    const s = () => store.getState();
+    s().beginGesture();
+    s().updateProject(withScript('1'));
+    s().updateProject(withScript('12'));
+    s().updateProject(withScript('123'));
+    s().endGesture();
+    expect(s().past).toHaveLength(1);
+    s().undo();
+    expect(s().project.script).toBe('');
+  });
+
+  it('clears redo on a new edit and caps the history', () => {
+    const { store } = clocked();
+    const s = () => store.getState();
+    s().updateProject(withScript('a'));
+    s().undo();
+    expect(s().future).toHaveLength(1);
+    s().updateProject(withScript('b'));
+    expect(s().future).toHaveLength(0);
+
+    for (let i = 0; i < 150; i++) s().updateProject(withScript(`x${i}`));
+    expect(s().past).toHaveLength(100);
+  });
+
+  it('forgets history when the server copy replaces local state', () => {
+    const { store } = clocked();
+    store.getState().updateProject(withScript('a'));
+    store.getState().replaceFromServer({
+      id: 'p1',
+      userId: 'u1',
+      title: 'Video',
+      project: createEmptyProject(),
+      revision: 3,
+    });
+    expect(store.getState().past).toHaveLength(0);
+    expect(store.getState().future).toHaveLength(0);
+  });
+});

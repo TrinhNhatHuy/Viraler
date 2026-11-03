@@ -1,5 +1,7 @@
 'use client';
 
+import { MediaPanel } from '@/components/media/media-panel';
+import { TimelinePanel } from '@/components/timeline/timeline-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CanvasSettings } from './canvas-settings';
 import { CaptionsPanel } from './captions-panel';
@@ -9,19 +11,13 @@ import { Preview } from './preview';
 import { PreviewTransport } from './preview-transport';
 import { ScriptPanel } from './script-panel';
 import { useAutosave } from './use-autosave';
+import { useUndoShortcuts } from './use-undo-shortcuts';
 import { VoiceoverAudio } from './voiceover-audio';
 import { VoiceoverPanel } from './voiceover-panel';
 
-function Placeholder({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-full items-center justify-center rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
 export function EditorShell() {
   const { saveNow } = useAutosave();
+  useUndoShortcuts();
   return (
     <div className="flex h-dvh flex-col">
       <VoiceoverAudio />
@@ -48,8 +44,10 @@ export function EditorShell() {
                 <CaptionsPanel />
               </div>
             </TabsContent>
-            <TabsContent value="media" className="p-3">
-              <Placeholder>Media library — Phase 5</Placeholder>
+            <TabsContent value="media" keepMounted className="min-h-0 overflow-y-auto">
+              <div className="p-4">
+                <MediaPanel />
+              </div>
             </TabsContent>
           </Tabs>
         </aside>
@@ -63,8 +61,8 @@ export function EditorShell() {
           <CanvasSettings />
         </aside>
       </div>
-      <footer className="h-36 shrink-0 border-t p-3">
-        <Placeholder>Timeline — Phase 5</Placeholder>
+      <footer className="shrink-0 border-t px-3 py-2">
+        <TimelinePanel />
       </footer>
     </div>
   );

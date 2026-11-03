@@ -4,7 +4,13 @@
  * running or the root .env is missing.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createEmptyProject, MEDIA_BUCKET, type Project, voiceoverPath } from '@viraler/shared';
+import {
+  createEmptyProject,
+  MEDIA_BUCKET,
+  mediaPath,
+  type Project,
+  voiceoverPath,
+} from '@viraler/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Database } from '@/lib/supabase/database.types';
 import {
@@ -227,6 +233,53 @@ describe.skipIf(!available)('project repo (local Supabase)', () => {
       });
       expect(res).toEqual({ kind: 'forbidden_path', path: src });
     }
+  });
+
+  it('accepts library and Pexels media, rejects anything else', async () => {
+    const created = await createProject(alice, { data: createEmptyProject() });
+    const withMedia = (src: string, thumbnail?: string): Project => ({
+      ...createEmptyProject(),
+      media: [{ id: 'm1', kind: 'video', src, origin: 'upload', ...(thumbnail && { thumbnail }) }],
+      clips: [{ id: 'c1', mediaId: 'm1', startMs: 0, durationMs: 1000, trimInMs: 0, muted: true }],
+    });
+    let revision = 1;
+    for (const [src, thumb] of [
+      [mediaPath(aliceId, 'a.mp4'), mediaPath(aliceId, 'a.thumb.jpg')],
+      ['https://videos.pexels.com/video-files/1/1.mp4', 'https://images.pexels.com/videos/1/a.jpg'],
+    ] as const) {
+      const res = await updateProject(alice, aliceId, created.id, {
+        data: withMedia(src, thumb),
+        expectedRevision: revision,
+      });
+      expect(res.kind).toBe('ok');
+      if (res.kind === 'ok') revision = res.revision;
+    }
+    for (const [src, thumb] of [
+      [mediaPath(bobId, 'a.mp4'), undefined], // another user's library
+      [`${aliceId}/media/../${bobId}/media/a.mp4`, undefined],
+      ['https://evil.test/a.mp4', undefined],
+      [mediaPath(aliceId, 'a.mp4'), 'https://evil.test/t.jpg'],
+    ] as const) {
+      const res = await updateProject(alice, aliceId, created.id, {
+        data: withMedia(src, thumb),
+        expectedRevision: revision,
+      });
+      expect(res).toEqual({ kind: 'forbidden_path', path: thumb ?? src });
+    }
+  });
+
+  it('rejects clips that point at media not in the project', async () => {
+    const created = await createProject(alice, { data: createEmptyProject() });
+    const data: Project = {
+      ...createEmptyProject(),
+      clips: [
+        { id: 'c1', mediaId: 'nope', startMs: 0, durationMs: 1000, trimInMs: 0, muted: true },
+      ],
+    };
+    expect(await updateProject(alice, aliceId, created.id, { data, expectedRevision: 1 })).toEqual({
+      kind: 'invalid_clip',
+      clipId: 'c1',
+    });
   });
 
   it('deletes the old voiceover file when it is replaced or removed', async () => {

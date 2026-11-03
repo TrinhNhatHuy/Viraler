@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     models_dir: str = "./models"
     kokoro_model: Literal["fp32", "int8", "fp16"] = "fp32"
     whisper_model: Literal["small.en", "base.en"] = "small.en"
+    pexels_api_key: str = ""
     worker_host: str = "0.0.0.0"
     worker_port: int = 8000
 

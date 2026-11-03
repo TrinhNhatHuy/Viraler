@@ -22,6 +22,11 @@ The worker needs model files: Kokoro for TTS (~350 MB) and Whisper `small.en` fo
 run `cd services/worker && uv run python -m app.model_files`. In Docker they're kept in the
 `worker-models` volume. Set `WHISPER_MODEL=base.en` for a smaller, faster captions model.
 
+Stock search needs a free Pexels API key (https://www.pexels.com/api/) in `PEXELS_API_KEY`; restart
+the worker after setting it. Stock media is linked from the Pexels CDN, not copied into Storage.
+Uploads (MP4, WebM, MOV, JPEG, PNG, WebP) are limited to 50 MB per file, the Supabase free-tier
+cap, and must be playable in the browser (e.g. H.264 MP4; HEVC .mov is rejected in Chrome).
+
 Local URLs:
 
 - App: http://localhost:3000

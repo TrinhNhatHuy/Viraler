@@ -2,6 +2,9 @@ import 'server-only';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import {
   DEFAULT_PROJECT_TITLE,
+  isAllowedExternalUrl,
+  isExternalSrc,
+  isInMediaFolder,
   isInProjectFolder,
   MEDIA_BUCKET,
   PROJECT_TITLE_MAX,
@@ -103,11 +106,33 @@ export type UpdateProjectResult =
   | { kind: 'ok'; revision: number; updatedAt: string }
   | { kind: 'not_found' }
   | { kind: 'conflict'; revision: number }
-  | { kind: 'forbidden_path'; path: string };
+  | { kind: 'forbidden_path'; path: string }
+  | { kind: 'invalid_clip'; clipId: string };
 
-/** Storage paths referenced by a project document that must belong to the project. */
-function ownedPaths(data: Project): string[] {
-  return data.voiceover ? [data.voiceover.src] : [];
+/**
+ * The first file reference the user may not point at, or null. A future server
+ * renderer reads these with the service role, so they must be the user's own:
+ * the voiceover lives in the project folder; media are in the user's library
+ * folder or on an allowed stock host.
+ */
+function forbiddenPath(data: Project, userId: string, projectId: string): string | null {
+  if (data.voiceover && !isInProjectFolder(data.voiceover.src, userId, projectId)) {
+    return data.voiceover.src;
+  }
+  for (const m of data.media) {
+    for (const src of [m.src, m.thumbnail]) {
+      if (src === undefined) continue;
+      const ok = isExternalSrc(src) ? isAllowedExternalUrl(src) : isInMediaFolder(src, userId);
+      if (!ok) return src;
+    }
+  }
+  return null;
+}
+
+/** A clip whose mediaId isn't in `data.media`, or null. */
+function danglingClip(data: Project): string | null {
+  const ids = new Set(data.media.map((m) => m.id));
+  return data.clips.find((c) => !ids.has(c.mediaId))?.id ?? null;
 }
 
 /** Best-effort Storage cleanup: a leftover file wastes space but must not fail the request. */
@@ -134,8 +159,10 @@ export async function updateProject(
   let previousSrc: string | null = null;
   if (body.data !== undefined) {
     if (body.expectedRevision === undefined) throw new Error('expectedRevision is required');
-    const foreign = ownedPaths(body.data).find((path) => !isInProjectFolder(path, userId, id));
+    const foreign = forbiddenPath(body.data, userId, id);
     if (foreign) return { kind: 'forbidden_path', path: foreign };
+    const clipId = danglingClip(body.data);
+    if (clipId) return { kind: 'invalid_clip', clipId };
     patch.data = toJson(body.data);
 
     // Remember the current voiceover file so it can be deleted if this save replaces it.

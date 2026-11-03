@@ -105,12 +105,19 @@ class Clip(CamelModel):
     label: str | None = None
 
 
+MEDIA_NAME_MAX = 200
+
+
 class MediaItem(CamelModel):
     id: Annotated[str, Field(min_length=1)]
     kind: Literal["video", "image", "audio"]
     src: Annotated[str, Field(min_length=1)]
     duration_ms: Ms | None = None
     origin: Literal["upload", "stock", "ai"]
+    width: Annotated[int, Field(gt=0, strict=True)] | None = None
+    height: Annotated[int, Field(gt=0, strict=True)] | None = None
+    thumbnail: Annotated[str, Field(min_length=1)] | None = None
+    name: Annotated[str, Field(max_length=MEDIA_NAME_MAX)] | None = None
 
 
 class Project(CamelModel):
@@ -177,10 +184,34 @@ class TranscribeOutput(CamelModel):
     duration_ms: Ms
 
 
+STOCK_PAGE_SIZE = 20
+
+
 class StockSearchInput(CamelModel):
-    query: Annotated[str, Field(min_length=1, max_length=200)]
+    query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     kind: Literal["video", "image"]
-    page: Annotated[int, Field(gt=0, strict=True)] = 1
+    page: Annotated[int, Field(gt=0, le=100, strict=True)] = 1
+
+
+class StockItem(CamelModel):
+    provider: Literal["pexels"]
+    provider_id: Annotated[str, Field(min_length=1)]
+    kind: Literal["video", "image"]
+    url: str
+    thumbnail_url: str
+    width: Annotated[int, Field(gt=0)]
+    height: Annotated[int, Field(gt=0)]
+    duration_ms: Ms | None = None
+    page_url: str
+    author: str
+    author_url: str
+
+
+class StockSearchOutput(CamelModel):
+    items: list[StockItem]
+    page: Annotated[int, Field(gt=0)]
+    has_more: StrictBool
+    total_results: Annotated[int, Field(ge=0)]
 
 
 class ImageInput(CamelModel):

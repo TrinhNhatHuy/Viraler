@@ -45,7 +45,11 @@ export async function PATCH(req: Request, ctx: RouteContext<'/api/projects/[id]'
         return notFound();
       case 'forbidden_path':
         return apiError(400, 'invalid_storage_path', {
-          message: "Project data references a file outside this project's folder.",
+          message: "Project data references a file that isn't yours or isn't allowed.",
+        });
+      case 'invalid_clip':
+        return apiError(400, 'invalid_project', {
+          message: 'A clip refers to media that is not in the project.',
         });
     }
   } catch (e) {

@@ -96,12 +96,20 @@ export const Clip = z.object({
 });
 export type Clip = z.infer<typeof Clip>;
 
+export const MEDIA_NAME_MAX = 200;
+
 export const MediaItem = z.object({
   id: z.string().min(1),
   kind: z.enum(['video', 'image', 'audio']),
+  /** Storage path ({uid}/media/…) or an allowed stock URL. */
   src: z.string().min(1),
   durationMs: Ms.optional(),
   origin: z.enum(['upload', 'stock', 'ai']),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+  /** Small preview image: Storage path or stock URL. */
+  thumbnail: z.string().min(1).optional(),
+  name: z.string().max(MEDIA_NAME_MAX).optional(),
 });
 export type MediaItem = z.infer<typeof MediaItem>;
 

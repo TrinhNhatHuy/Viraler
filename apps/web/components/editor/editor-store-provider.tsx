@@ -13,9 +13,15 @@ import {
   type PlaybackState,
   type PlaybackStore,
 } from '@/stores/playback-store';
+import {
+  createTimelineStore,
+  type TimelineState,
+  type TimelineStore,
+} from '@/stores/timeline-store';
 
 const EditorStoreContext = createContext<EditorStore | null>(null);
 const PlaybackStoreContext = createContext<PlaybackStore | null>(null);
+const TimelineStoreContext = createContext<TimelineStore | null>(null);
 
 /** Render with `key={projectId}` so switching projects creates a fresh store. */
 export function EditorStoreProvider({
@@ -27,9 +33,12 @@ export function EditorStoreProvider({
 }) {
   const [store] = useState(() => createEditorStore(initial));
   const [playback] = useState(createPlaybackStore);
+  const [timeline] = useState(createTimelineStore);
   return (
     <EditorStoreContext.Provider value={store}>
-      <PlaybackStoreContext.Provider value={playback}>{children}</PlaybackStoreContext.Provider>
+      <PlaybackStoreContext.Provider value={playback}>
+        <TimelineStoreContext.Provider value={timeline}>{children}</TimelineStoreContext.Provider>
+      </PlaybackStoreContext.Provider>
     </EditorStoreContext.Provider>
   );
 }
@@ -54,4 +63,15 @@ export function usePlaybackApi(): PlaybackStore {
 /** Select a slice of playback state (voiceover clock). */
 export function usePlayback<T>(selector: (state: PlaybackState) => T): T {
   return useStore(usePlaybackApi(), selector);
+}
+
+export function useTimelineApi(): TimelineStore {
+  const store = useContext(TimelineStoreContext);
+  if (!store) throw new Error('useTimeline must be used inside <EditorStoreProvider>');
+  return store;
+}
+
+/** Select a slice of timeline UI state (selection, zoom). */
+export function useTimeline<T>(selector: (state: TimelineState) => T): T {
+  return useStore(useTimelineApi(), selector);
 }

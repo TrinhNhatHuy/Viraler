@@ -4,31 +4,22 @@ import { PauseIcon, PlayIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { isInteractiveTarget } from '@/lib/keyboard';
 import { formatDuration } from '@/lib/script/stats';
-import { useEditorStore, usePlayback, usePlaybackApi } from './editor-store-provider';
-
-/** Elements where Space has its own meaning (typing, pressing, sliding). */
-const SPACE_TARGETS =
-  'input, textarea, select, button, a, [contenteditable="true"], [role="slider"], [role="tab"], [role="switch"], [role="option"], [role="menuitem"]';
-
-function isSpaceTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest(SPACE_TARGETS) !== null;
-}
+import { usePlayback, usePlaybackApi } from './editor-store-provider';
 
 /** Play/pause, scrubber and time under the preview. Space toggles playback. */
 export function PreviewTransport() {
-  const durationMs = useEditorStore((s) => s.project.voiceover?.durationMs ?? 0);
-  const hasVoiceover = useEditorStore((s) => Boolean(s.project.voiceover));
   const playback = usePlaybackApi();
+  const durationMs = usePlayback((s) => s.durationMs);
   const playing = usePlayback((s) => s.playing);
   const positionMs = usePlayback((s) => s.positionMs);
-  const status = usePlayback((s) => s.status);
-  const disabled = !hasVoiceover || status === 'empty' || status === 'error';
+  const disabled = durationMs <= 0;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isSpaceTarget(e.target)) return;
+      if (isInteractiveTarget(e.target)) return;
       e.preventDefault();
       playback.getState().toggle();
     };

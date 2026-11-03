@@ -11,8 +11,17 @@ export type JobStatus = z.infer<typeof JobStatus>;
 export const ACTIVE_JOB_STATUSES = ['queued', 'running'] as const satisfies readonly JobStatus[];
 
 export const MAX_JOB_ATTEMPTS = 3;
-/** Max queued + running jobs per user. */
+/** CPU-heavy job types (the worker's main loop). Their active jobs share one cap. */
+export const HEAVY_JOB_TYPES = [
+  'tts',
+  'transcribe',
+  'image',
+  'render',
+] as const satisfies readonly JobType[];
+/** Max queued + running heavy jobs per user. */
 export const MAX_ACTIVE_JOBS_PER_USER = 3;
+/** Max queued + running stock searches per user (separate from heavy jobs). */
+export const MAX_ACTIVE_SEARCHES_PER_USER = 2;
 
 export const TTS_SPEED_MIN = 0.5;
 export const TTS_SPEED_MAX = 2;
@@ -52,11 +61,41 @@ export const TranscribeOutput = z.object({
 export type TranscribeOutput = z.infer<typeof TranscribeOutput>;
 
 // Fleshed out in the phase that implements each job.
+export const STOCK_PAGE_SIZE = 20;
+
 export const StockSearchInput = z.object({
-  query: z.string().min(1).max(200),
+  query: z.string().trim().min(1, 'Enter a search term').max(200),
   kind: z.enum(['video', 'image']),
-  page: z.number().int().positive().default(1),
+  page: z.number().int().positive().max(100).default(1),
 });
+export type StockSearchInput = z.infer<typeof StockSearchInput>;
+
+/** One Pexels search result (attribution included, per the Pexels API guidelines). */
+export const StockItem = z.object({
+  provider: z.literal('pexels'),
+  providerId: z.string().min(1),
+  kind: z.enum(['video', 'image']),
+  /** File to use in the video (the CDN sends CORS headers). */
+  url: z.url(),
+  thumbnailUrl: z.url(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  durationMs: Ms.optional(),
+  /** The item's page on pexels.com. */
+  pageUrl: z.url(),
+  author: z.string(),
+  authorUrl: z.string(),
+});
+export type StockItem = z.infer<typeof StockItem>;
+
+export const StockSearchOutput = z.object({
+  items: z.array(StockItem),
+  page: z.number().int().positive(),
+  hasMore: z.boolean(),
+  totalResults: z.number().int().nonnegative(),
+});
+export type StockSearchOutput = z.infer<typeof StockSearchOutput>;
+
 export const ImageInput = z.object({
   prompt: z.string().min(1).max(1000),
 });
@@ -95,6 +134,7 @@ export type Job = z.infer<typeof Job>;
 export const CreateJobBody = z.discriminatedUnion('type', [
   z.object({ type: z.literal('tts'), projectId: z.uuid(), input: TtsInput }),
   z.object({ type: z.literal('transcribe'), projectId: z.uuid(), input: TranscribeInput }),
+  z.object({ type: z.literal('stock_search'), projectId: z.uuid(), input: StockSearchInput }),
 ]);
 export type CreateJobBody = z.infer<typeof CreateJobBody>;
 

@@ -25,6 +25,18 @@ describe('Project schema', () => {
     expect(Project.safeParse(p).success).toBe(true);
   });
 
+  it('accepts media items without the optional display fields', () => {
+    const p = clone(sample);
+    p.media[0] = { id: 'm', kind: 'image', src: 'u/media/m.jpg', origin: 'upload' };
+    expect(Project.safeParse(p).success).toBe(true);
+  });
+
+  it('rejects zero-sized media dimensions', () => {
+    const p = clone(sample);
+    p.media[0]!.width = 0;
+    expect(Project.safeParse(p).success).toBe(false);
+  });
+
   it('rejects negative times', () => {
     const p = clone(sample);
     p.clips[0]!.startMs = -1;

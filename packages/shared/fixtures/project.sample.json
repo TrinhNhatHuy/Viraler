@@ -74,7 +74,11 @@
       "kind": "video",
       "src": "user-id/media/pronghorn.mp4",
       "durationMs": 8000,
-      "origin": "stock"
+      "origin": "stock",
+      "width": 1080,
+      "height": 1920,
+      "thumbnail": "user-id/media/pronghorn.thumb.jpg",
+      "name": "Pronghorn running"
     },
     { "id": "media-2", "kind": "image", "src": "user-id/media/cheetah.jpg", "origin": "upload" }
   ]

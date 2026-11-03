@@ -3,9 +3,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   ACTIVE_JOB_STATUSES,
   type CreateJobBody,
+  HEAVY_JOB_TYPES,
   isInProjectFolder,
   type JobView,
   MAX_ACTIVE_JOBS_PER_USER,
+  MAX_ACTIVE_SEARCHES_PER_USER,
 } from '@viraler/shared';
 import { RepoError } from '@/lib/projects/repo';
 import type { Database, Json, Tables } from '@/lib/supabase/database.types';
@@ -52,7 +54,7 @@ export type CreateJobResult =
   | { kind: 'ok'; job: JobView }
   | { kind: 'project_not_found' }
   | { kind: 'forbidden_path'; path: string }
-  | { kind: 'too_many_active'; limit: number };
+  | { kind: 'too_many_active'; limit: number; search: boolean };
 
 /**
  * Queues a job. Ownership is checked with the *user's* client (RLS); the insert
@@ -81,15 +83,18 @@ export async function createJob(
   if (projectError) throw new RepoError(projectError.message, projectError.code);
   if (!project) return { kind: 'project_not_found' };
 
+  // Heavy jobs and stock searches have separate caps (the worker runs them in
+  // separate loops), so a search is never refused because TTS is running.
+  const search = body.type === 'stock_search';
+  const limit = search ? MAX_ACTIVE_SEARCHES_PER_USER : MAX_ACTIVE_JOBS_PER_USER;
   const { count, error: countError } = await adminDb
     .from('jobs')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .in('status', [...ACTIVE_JOB_STATUSES]);
+    .in('status', [...ACTIVE_JOB_STATUSES])
+    .in('type', search ? ['stock_search'] : [...HEAVY_JOB_TYPES]);
   if (countError) throw new RepoError(countError.message, countError.code);
-  if ((count ?? 0) >= MAX_ACTIVE_JOBS_PER_USER) {
-    return { kind: 'too_many_active', limit: MAX_ACTIVE_JOBS_PER_USER };
-  }
+  if ((count ?? 0) >= limit) return { kind: 'too_many_active', limit, search };
 
   const { data: row, error } = await adminDb
     .from('jobs')

@@ -23,7 +23,9 @@ export function ScriptPanel() {
         id="script"
         value={script}
         maxLength={SCRIPT_MAX_CHARS}
-        onChange={(e) => updateProject((p) => ({ ...p, script: e.target.value }))}
+        onChange={(e) =>
+          updateProject((p) => ({ ...p, script: e.target.value }), { key: 'script' })
+        }
         placeholder="Write what the voiceover should say…"
         className="min-h-48 resize-y text-sm leading-relaxed"
       />

@@ -62,7 +62,11 @@ function ColorField(props: { label: string; value: string; onChange: (v: string)
 export function CaptionStyleForm() {
   const style = useEditorStore((s) => s.project.captions.style);
   const updateProject = useEditorStore((s) => s.updateProject);
-  const set = (patch: Partial<CaptionStyle>) => updateProject((p) => setCaptionStyle(p, patch));
+  // One undo step per control while it's being dragged/picked.
+  const set = (patch: Partial<CaptionStyle>) =>
+    updateProject((p) => setCaptionStyle(p, patch), {
+      key: `caption-style:${Object.keys(patch).join(',')}`,
+    });
   const uppercaseId = useId();
   const backgroundId = useId();
 

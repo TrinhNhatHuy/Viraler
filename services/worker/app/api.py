@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from app.asr.engine import WhisperEngine
 from app.config import get_settings
-from app.jobs import build_handlers
+from app.jobs import HEAVY_JOB_TYPES, LIGHT_JOB_TYPES, build_handlers
 from app.runner import run_forever
 from app.tts.engine import KokoroEngine
 
@@ -38,19 +38,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ).start()
 
     stop = threading.Event()
-    thread = threading.Thread(
-        target=run_forever,
-        args=(settings.database_url, settings.worker_poll_interval_seconds, stop, handlers),
-        name="job-loop",
-        daemon=True,
-    )
-    thread.start()
-    app.state.loop_thread = thread
+    loops = [
+        threading.Thread(
+            target=run_forever,
+            args=(settings.database_url, settings.worker_poll_interval_seconds, stop, handlers),
+            kwargs={"types": types, "name": name, "prune_every_s": prune},
+            name=f"{name}-loop",
+            daemon=True,
+        )
+        for name, types, prune in (
+            ("heavy", HEAVY_JOB_TYPES, None),
+            ("light", LIGHT_JOB_TYPES, 3600.0),
+        )
+    ]
+    for thread in loops:
+        thread.start()
+    app.state.loops = loops
     app.state.kokoro = kokoro
     app.state.whisper = whisper
     yield
     stop.set()
-    thread.join(timeout=10)
+    for thread in loops:
+        thread.join(timeout=10)
 
 
 app = FastAPI(title="Viraler worker", lifespan=lifespan)
@@ -58,14 +67,14 @@ app = FastAPI(title="Viraler worker", lifespan=lifespan)
 
 @app.get("/health")
 def health() -> dict[str, bool]:
-    thread: threading.Thread | None = getattr(app.state, "loop_thread", None)
+    loops: list[threading.Thread] = getattr(app.state, "loops", [])
     kokoro: KokoroEngine | None = getattr(app.state, "kokoro", None)
     whisper: WhisperEngine | None = getattr(app.state, "whisper", None)
     tts_ready = bool(kokoro and kokoro.ready.is_set())
     asr_ready = bool(whisper and whisper.ready.is_set())
     return {
         "ok": True,
-        "loop_alive": bool(thread and thread.is_alive()),
+        "loop_alive": bool(loops) and all(t.is_alive() for t in loops),
         "models_ready": tts_ready and asr_ready,
         "tts_ready": tts_ready,
         "asr_ready": asr_ready,

@@ -98,8 +98,9 @@ function CurrentVoiceover() {
           value={Math.round(volume * 100)}
           onValueChange={(v) => {
             const pct = typeof v === 'number' ? v : (v[0] ?? 100);
-            updateProject((p) =>
-              p.voiceover ? { ...p, voiceover: { ...p.voiceover, volume: pct / 100 } } : p,
+            updateProject(
+              (p) => (p.voiceover ? { ...p, voiceover: { ...p.voiceover, volume: pct / 100 } } : p),
+              { key: 'voiceover-volume' },
             );
           }}
         />

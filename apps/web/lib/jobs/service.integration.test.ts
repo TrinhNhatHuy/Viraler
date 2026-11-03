@@ -1,6 +1,11 @@
 /** Jobs service against local Supabase (skips if it isn't running). */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { createEmptyProject, MAX_ACTIVE_JOBS_PER_USER, voiceoverPath } from '@viraler/shared';
+import {
+  createEmptyProject,
+  MAX_ACTIVE_JOBS_PER_USER,
+  MAX_ACTIVE_SEARCHES_PER_USER,
+  voiceoverPath,
+} from '@viraler/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createProject } from '@/lib/projects/repo';
 import type { Database } from '@/lib/supabase/database.types';
@@ -123,6 +128,22 @@ describe.skipIf(!available)('jobs service (local Supabase)', () => {
     expect(await createJob(carol.db, admin, carol.id, tts(project.id))).toEqual({
       kind: 'too_many_active',
       limit: MAX_ACTIVE_JOBS_PER_USER,
+      search: false,
+    });
+
+    // Searches have their own cap and still go through while heavy jobs are capped.
+    const search = {
+      type: 'stock_search' as const,
+      projectId: project.id,
+      input: { query: 'ocean', kind: 'video' as const, page: 1 },
+    };
+    for (let i = 0; i < MAX_ACTIVE_SEARCHES_PER_USER; i++) {
+      expect((await createJob(carol.db, admin, carol.id, search)).kind).toBe('ok');
+    }
+    expect(await createJob(carol.db, admin, carol.id, search)).toEqual({
+      kind: 'too_many_active',
+      limit: MAX_ACTIVE_SEARCHES_PER_USER,
+      search: true,
     });
 
     // Finished jobs don't count.

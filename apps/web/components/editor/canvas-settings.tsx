@@ -33,7 +33,9 @@ export function CanvasSettings() {
   const updateProject = useEditorStore((s) => s.updateProject);
 
   const setCanvas = (patch: Partial<Project['canvas']>) =>
-    updateProject((p) => ({ ...p, canvas: { ...p.canvas, ...patch } }));
+    updateProject((p) => ({ ...p, canvas: { ...p.canvas, ...patch } }), {
+      key: `canvas:${Object.keys(patch).join(',')}`,
+    });
 
   return (
     <section className="grid gap-4">

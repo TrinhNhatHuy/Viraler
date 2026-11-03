@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeftIcon } from 'lucide-react';
+import { ArrowLeftIcon, Redo2Icon, Undo2Icon } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -42,10 +42,42 @@ export function EditorHeader({ saveNow }: { saveNow: () => Promise<void> }) {
         }}
         className="h-9 max-w-sm border-transparent text-base font-medium shadow-none hover:border-input"
       />
+      <UndoRedo />
       <div className="ml-auto">
         <SaveStatus onRetry={() => void saveNow()} />
       </div>
     </header>
+  );
+}
+
+function UndoRedo() {
+  const canUndo = useEditorStore((s) => s.past.length > 0);
+  const canRedo = useEditorStore((s) => s.future.length > 0);
+  const undo = useEditorStore((s) => s.undo);
+  const redo = useEditorStore((s) => s.redo);
+  return (
+    <div className="flex items-center">
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Undo"
+        title="Undo (Ctrl+Z)"
+        disabled={!canUndo}
+        onClick={undo}
+      >
+        <Undo2Icon />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Redo"
+        title="Redo (Ctrl+Shift+Z)"
+        disabled={!canRedo}
+        onClick={redo}
+      >
+        <Redo2Icon />
+      </Button>
+    </div>
   );
 }
 

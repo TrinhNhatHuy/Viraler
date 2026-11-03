@@ -9,7 +9,19 @@ import { createStore } from 'zustand/vanilla';
  * it in `titleSeq` / `dataSeq`. A save snapshots the current seq; when it
  * succeeds only edits up to that seq count as saved, so edits made while a save
  * is in flight stay dirty.
+ *
+ * Undo/redo keep whole `Project` snapshots (cheap: updates share structure).
+ * Consecutive updates with the same `key` within HISTORY_MERGE_MS (typing, a
+ * slider drag) or inside a gesture (a timeline drag) are one undo step.
  */
+
+export const HISTORY_LIMIT = 100;
+export const HISTORY_MERGE_MS = 1000;
+
+export interface UpdateOptions {
+  /** Updates with the same key in quick succession merge into one undo step. */
+  key?: string;
+}
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
 
@@ -53,8 +65,17 @@ export interface EditorState {
   /** Server revision reported by the last 409. */
   conflictRevision: number | null;
 
+  /** Older project states (most recent last) and undone ones (next redo first). */
+  past: Project[];
+  future: Project[];
+
   setTitle(title: string): void;
-  updateProject(recipe: (project: Project) => Project): void;
+  updateProject(recipe: (project: Project) => Project, options?: UpdateOptions): void;
+  undo(): void;
+  redo(): void;
+  /** Updates until `endGesture` form one undo step (e.g. a drag). */
+  beginGesture(): void;
+  endGesture(): void;
   /** Returns what needs saving and marks the store as saving, or null if nothing is savable. */
   beginSave(): SaveSnapshot | null;
   saveSucceeded(snapshot: SaveSnapshot, revision: number): void;
@@ -94,10 +115,28 @@ function initialState(init: EditorInit) {
     saveStatus: 'idle' as SaveStatus,
     saveError: null,
     conflictRevision: null,
+    past: [] as Project[],
+    future: [] as Project[],
   };
 }
 
-export function createEditorStore(init: EditorInit) {
+export function createEditorStore(
+  init: EditorInit,
+  { now = Date.now }: { now?: () => number } = {},
+) {
+  // Merge bookkeeping lives outside the state: it never needs to re-render anything.
+  let lastKey: string | null = null;
+  let lastAt = 0;
+  let gestureDepth = 0;
+  let gestureStepTaken = false;
+
+  /** Moves to `project` as a data edit (autosave picks it up). */
+  const dataEdit = (s: EditorState, project: Project) => ({
+    project,
+    changeSeq: s.changeSeq + 1,
+    dataSeq: s.changeSeq + 1,
+  });
+
   return createStore<EditorState>()((set, get) => ({
     ...initialState(init),
 
@@ -106,10 +145,51 @@ export function createEditorStore(init: EditorInit) {
       set((s) => ({ title, changeSeq: s.changeSeq + 1, titleSeq: s.changeSeq + 1 }));
     },
 
-    updateProject(recipe) {
-      const next = recipe(get().project);
-      if (next === get().project) return;
-      set((s) => ({ project: next, changeSeq: s.changeSeq + 1, dataSeq: s.changeSeq + 1 }));
+    updateProject(recipe, options) {
+      const prev = get().project;
+      const next = recipe(prev);
+      if (next === prev) return;
+      const t = now();
+      const merge =
+        gestureDepth > 0
+          ? gestureStepTaken
+          : options?.key !== undefined && options.key === lastKey && t - lastAt < HISTORY_MERGE_MS;
+      if (gestureDepth > 0) gestureStepTaken = true;
+      lastKey = options?.key ?? null;
+      lastAt = t;
+      set((s) => ({
+        ...dataEdit(s, next),
+        ...(merge ? {} : { past: [...s.past, prev].slice(-HISTORY_LIMIT), future: [] }),
+      }));
+    },
+
+    undo() {
+      const { past, project } = get();
+      const prev = past.at(-1);
+      if (!prev) return;
+      lastKey = null;
+      set((s) => ({
+        ...dataEdit(s, prev),
+        past: past.slice(0, -1),
+        future: [project, ...s.future],
+      }));
+    },
+
+    redo() {
+      const { future, project } = get();
+      const next = future[0];
+      if (!next) return;
+      lastKey = null;
+      set((s) => ({ ...dataEdit(s, next), past: [...s.past, project], future: future.slice(1) }));
+    },
+
+    beginGesture() {
+      if (gestureDepth++ === 0) gestureStepTaken = false;
+    },
+
+    endGesture() {
+      gestureDepth = Math.max(0, gestureDepth - 1);
+      lastKey = null;
     },
 
     beginSave() {

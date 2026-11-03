@@ -16,6 +16,8 @@ const STALLED_AFTER_MS = 30_000;
 export function useJobPolling(
   jobId: string | null,
   onSettled: (job: JobView) => void,
+  /** Poll interval for the first 10 s (default 1 s); quick jobs like searches use less. */
+  { fastMs = FAST_MS }: { fastMs?: number } = {},
 ): { job: JobView | null; stalled: boolean } {
   const [state, setState] = useState<{ job: JobView | null; stalled: boolean }>({
     job: null,
@@ -43,7 +45,7 @@ export function useJobPolling(
         return; // job deleted (project deleted) or signed out: stop polling
       }
       // Network errors: keep polling.
-      timer = setTimeout(tick, elapsed < FAST_PHASE_MS ? FAST_MS : SLOW_MS);
+      timer = setTimeout(tick, elapsed < FAST_PHASE_MS ? fastMs : SLOW_MS);
     };
     void tick();
 

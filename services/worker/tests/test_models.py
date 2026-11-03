@@ -10,6 +10,7 @@ from app.models import (
     JOB_INPUT_BY_TYPE,
     SCRIPT_MAX_CHARS,
     Project,
+    StockSearchInput,
     TranscribeInput,
     TranscribeOutput,
     VoiceId,
@@ -110,3 +111,15 @@ def test_transcribe_output_uses_camel_case() -> None:
         "aligned",
         "durationMs",
     }
+
+
+def test_fixture_keeps_media_display_fields(sample: dict) -> None:
+    media = Project.model_validate(sample).media[0]
+    assert (media.width, media.height, media.name) == (1080, 1920, "Pronghorn running")
+    assert media.thumbnail == sample["media"][0]["thumbnail"]
+
+
+def test_stock_search_input_strips_and_limits() -> None:
+    assert StockSearchInput.model_validate({"query": " sea ", "kind": "image"}).query == "sea"
+    with pytest.raises(ValidationError):
+        StockSearchInput.model_validate({"query": "sea", "kind": "image", "page": 101})

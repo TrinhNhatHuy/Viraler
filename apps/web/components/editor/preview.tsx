@@ -2,13 +2,17 @@
 
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@viraler/shared';
 import { useEffect, useRef } from 'react';
+import { mediaUrls } from '@/lib/media/urls';
 import { ensureFont } from '@/lib/render/fonts';
+import { MediaPool } from '@/lib/render/media-pool';
 import { Renderer } from '@/lib/render/renderer';
+import { syncVideos } from '@/lib/render/video-sync';
 import { useEditorStoreApi, usePlaybackApi } from './editor-store-provider';
 
 /**
  * Live preview: draws the project with lib/render at the playback time. Redraws
- * every animation frame while playing, otherwise only when something changes.
+ * every animation frame while playing, otherwise only when something changes
+ * (edits, seeks, a video frame arriving).
  */
 export function Preview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -20,15 +24,21 @@ export function Preview() {
     if (!ctx) return;
     const renderer = new Renderer();
     let frame = 0;
-
-    const draw = () => {
-      frame = 0;
-      renderer.render(ctx, store.getState().project, playback.getState().nowMs());
-      if (playback.getState().playing) frame = requestAnimationFrame(draw);
-    };
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(draw);
     };
+    const pool = new MediaPool(mediaUrls(), schedule);
+    pool.sync(store.getState().project.media);
+
+    function draw() {
+      frame = 0;
+      const { project } = store.getState();
+      const { playing } = playback.getState();
+      const t = playback.getState().nowMs();
+      syncVideos(pool, project.clips, t, playing);
+      renderer.render(ctx!, project, t, pool);
+      if (playing && !frame) frame = requestAnimationFrame(draw);
+    }
 
     // Redraw with the real font once it has loaded (text widths change).
     let fontKey = '';
@@ -46,6 +56,7 @@ export function Preview() {
     const unsubscribe = [
       store.subscribe((s, prev) => {
         if (s.project !== prev.project) {
+          if (s.project.media !== prev.project.media) pool.sync(s.project.media);
           loadFont();
           schedule();
         }
@@ -57,6 +68,7 @@ export function Preview() {
     return () => {
       cancelAnimationFrame(frame);
       for (const off of unsubscribe) off();
+      pool.dispose();
     };
   }, [store, playback]);
 
