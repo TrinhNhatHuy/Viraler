@@ -123,3 +123,17 @@ def test_stock_search_input_strips_and_limits() -> None:
     assert StockSearchInput.model_validate({"query": " sea ", "kind": "image"}).query == "sea"
     with pytest.raises(ValidationError):
         StockSearchInput.model_validate({"query": "sea", "kind": "image", "page": 101})
+
+
+def test_older_project_gets_style_defaults(sample: dict) -> None:
+    for key in ("highlightMode", "animation", "maxLines"):
+        del sample["captions"]["style"][key]
+    del sample["hookTitle"]["entrance"]
+    for key in ("layout", "titleStyle", "labelStyle", "rankColor", "entrance"):
+        del sample["ranking"][key]
+    project = Project.model_validate(sample)
+    assert (project.captions.style.highlight_mode, project.captions.style.max_lines) == ("color", 1)
+    assert project.hook_title.entrance == "none"
+    assert project.ranking.layout == "badge"
+    assert project.ranking.title_style.font_size_px == 64
+    assert project.ranking.label_style.position_y == 0.17

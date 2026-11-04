@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from app.asr.engine import SAMPLE_RATE, AsrEngine, AudioDecodeError
-from app.captions import align_to_script, clean_words, script_tokens
+from app.captions import align_to_script, clean_words, ensure_min_duration, script_tokens
 from app.jobs.base import Handler, PermanentJobError
 from app.models import (
     MAX_AUDIO_DURATION_MS,
@@ -54,9 +54,11 @@ def make_transcribe_handler(engine: AsrEngine, storage: StorageClient) -> Handle
             raise PermanentJobError("The voiceover is too long to caption.")
 
         result = engine.transcribe(samples)
-        words = clean_words(result.words, duration_ms)
+        words = ensure_min_duration(clean_words(result.words, duration_ms), duration_ms)
         tokens = script_tokens(params.script)
         aligned = align_to_script(tokens, words, duration_ms) if tokens else None
+        if aligned is not None:
+            aligned = ensure_min_duration(aligned, duration_ms)
 
         output = TranscribeOutput(
             audio_path=params.audio_path,

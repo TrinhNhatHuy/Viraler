@@ -43,6 +43,37 @@ def clean_words(raw: list[RawWord], duration_ms: int) -> list[TimedWord]:
     return out
 
 
+# Whisper sometimes gives a word no time at all; it would never be highlighted.
+MIN_WORD_MS = 80
+
+
+def ensure_min_duration(
+    words: list[TimedWord], duration_ms: int, min_ms: int = MIN_WORD_MS
+) -> list[TimedWord]:
+    """Gives every word at least `min_ms` (when the audio allows).
+
+    Forward: a short word grows into the gap after it, pushing later starts if
+    needed. Backward: anything pushed past the end of the audio is pulled back.
+    Times stay monotonic.
+    """
+    grown: list[TimedWord] = []
+    prev_end = 0
+    for w in words:
+        start = max(w.start_ms, prev_end)
+        end = max(w.end_ms, start + min_ms)
+        grown.append(TimedWord(w.text, start, end))
+        prev_end = end
+    out: list[TimedWord] = []
+    limit = duration_ms
+    for w in reversed(grown):
+        end = min(w.end_ms, limit)
+        start = max(0, min(w.start_ms, end - min_ms))
+        out.append(TimedWord(w.text, start, end))
+        limit = start
+    out.reverse()
+    return out
+
+
 def match_key(text: str) -> str:
     """Comparison form of a word: case-folded letters and digits only."""
     return "".join(ch for ch in text.casefold() if ch.isalnum())

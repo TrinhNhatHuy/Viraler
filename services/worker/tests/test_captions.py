@@ -107,3 +107,36 @@ def test_returns_none_when_the_audio_does_not_match() -> None:
 def test_returns_none_without_words_or_tokens() -> None:
     assert align_to_script([], [tw("a", 0, 1)], 1) is None
     assert align_to_script(["a"], [], 1) is None
+
+
+# --- ensure_min_duration -----------------------------------------------------------
+
+
+def test_short_word_takes_the_gap_after_it() -> None:
+    from app.captions import ensure_min_duration
+
+    words = [tw("number", 1000, 1000), tw("three", 1300, 1600)]
+    assert ensure_min_duration(words, 2000) == [tw("number", 1000, 1080), tw("three", 1300, 1600)]
+
+
+def test_short_word_nudges_the_next_start_but_keeps_its_minimum() -> None:
+    from app.captions import ensure_min_duration
+
+    words = [tw("number", 2740, 2740), tw("three:", 2740, 3000)]
+    out = ensure_min_duration(words, 5000)
+    assert out == [tw("number", 2740, 2820), tw("three:", 2820, 3000)]
+    # The next word is short too: both keep at least 80 ms where possible.
+    tight = ensure_min_duration([tw("a", 100, 100), tw("b", 100, 150)], 5000)
+    assert tight[0] == tw("a", 100, 180) and tight[1].start_ms == 180
+    assert tight[1].end_ms - tight[1].start_ms >= 80
+
+
+def test_min_duration_stays_inside_the_audio_and_leaves_normal_words() -> None:
+    from app.captions import ensure_min_duration
+
+    words = [tw("ok", 0, 300), tw("end", 990, 1000)]
+    out = ensure_min_duration(words, 1000)
+    assert out[0] == tw("ok", 0, 300)
+    assert out[1] == tw("end", 920, 1000)  # grows backwards: the audio ends at 1000
+    for prev, cur in zip(out, out[1:], strict=False):
+        assert prev.end_ms <= cur.start_ms <= cur.end_ms

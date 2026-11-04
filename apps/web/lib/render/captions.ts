@@ -22,7 +22,9 @@ export interface PageWord {
   text: string;
   startMs: number;
   endMs: number;
-  /** Left edge relative to the start of the line, in canvas px. */
+  /** Line of the page (0 or 1). */
+  line: number;
+  /** Left edge relative to the start of its line, in canvas px. */
   x: number;
   width: number;
 }
@@ -32,7 +34,9 @@ export interface CaptionPage {
   /** Exclusive. */
   endMs: number;
   words: PageWord[];
-  /** Line width in canvas px (may exceed the safe width for a single long word). */
+  /** Width of each line in canvas px (a single long word may exceed the safe width). */
+  lineWidths: number[];
+  /** Widest line. */
   width: number;
 }
 
@@ -43,16 +47,24 @@ export function displayText(text: string, style: Pick<CaptionStyle, 'uppercase'>
   return style.uppercase ? trimmed.toUpperCase() : trimmed;
 }
 
-/** Splits words into one-line pages (see the paging rules in the constants above). */
+/**
+ * Splits words into pages of up to `maxLines` lines. A line holds at most
+ * `maxWordsPerLine` words within `maxWidth`; when it's full the next line
+ * starts, and when the last line is full a new page does. A sentence end or a
+ * pause always starts a new page.
+ */
 export function buildCaptionPages(
   words: readonly CaptionWord[],
-  style: Pick<CaptionStyle, 'uppercase' | 'maxWordsPerLine'>,
+  style: Pick<CaptionStyle, 'uppercase' | 'maxWordsPerLine'> & { maxLines?: number },
   measure: MeasureText,
   maxWidth: number = CAPTION_SAFE_WIDTH,
 ): CaptionPage[] {
+  const maxLines = Math.max(1, style.maxLines ?? 1);
   const space = measure(' ');
   const groups: PageWord[][] = [];
   let current: PageWord[] = [];
+  let line = 0;
+  let lineWords = 0;
   let lineWidth = 0;
 
   words.forEach((word, index) => {
@@ -60,22 +72,28 @@ export function buildCaptionPages(
     if (!text) return;
     const width = measure(text);
     const prev = current.at(-1);
-    const prevSource = prev ? words[prev.index]! : null;
-    const breakHere =
-      prev !== undefined &&
-      prevSource !== null &&
-      (current.length >= style.maxWordsPerLine ||
+    if (prev) {
+      const prevSource = words[prev.index]!;
+      const pageBreak =
         SENTENCE_END.test(prevSource.text.trim()) ||
-        word.startMs - prevSource.endMs >= PAUSE_BREAK_MS ||
-        lineWidth + space + width > maxWidth);
-    if (breakHere) {
-      groups.push(current);
-      current = [];
-      lineWidth = 0;
+        word.startMs - prevSource.endMs >= PAUSE_BREAK_MS;
+      const lineFull = lineWords >= style.maxWordsPerLine || lineWidth + space + width > maxWidth;
+      if (pageBreak || (lineFull && line + 1 >= maxLines)) {
+        groups.push(current);
+        current = [];
+        line = 0;
+        lineWords = 0;
+        lineWidth = 0;
+      } else if (lineFull) {
+        line += 1;
+        lineWords = 0;
+        lineWidth = 0;
+      }
     }
-    const x = current.length === 0 ? 0 : lineWidth + space;
-    current.push({ index, text, startMs: word.startMs, endMs: word.endMs, x, width });
+    const x = lineWords === 0 ? 0 : lineWidth + space;
+    current.push({ index, text, startMs: word.startMs, endMs: word.endMs, line, x, width });
     lineWidth = x + width;
+    lineWords += 1;
   });
   if (current.length > 0) groups.push(current);
 
@@ -84,11 +102,14 @@ export function buildCaptionPages(
     const last = group.at(-1)!;
     const next = groups[i + 1]?.[0];
     const linger = last.endMs + LINGER_MS;
+    const lineWidths: number[] = [];
+    for (const w of group) lineWidths[w.line] = Math.max(lineWidths[w.line] ?? 0, w.x + w.width);
     return {
       startMs: first.startMs,
       endMs: next ? Math.max(first.startMs, Math.min(next.startMs, linger)) : linger,
       words: group,
-      width: last.x + last.width,
+      lineWidths,
+      width: Math.max(...lineWidths),
     };
   });
 }

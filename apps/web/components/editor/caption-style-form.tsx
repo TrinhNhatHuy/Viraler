@@ -1,63 +1,32 @@
 'use client';
 
 import type { CaptionStyle } from '@viraler/shared';
-import { useId } from 'react';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { setCaptionStyle } from '@/lib/captions/edit';
-import { toColorInputValue } from './canvas-settings';
+import { applyCaptionPreset, CAPTION_PRESETS } from '@/lib/captions/presets';
 import { useEditorStore } from './editor-store-provider';
+import {
+  ColorField,
+  SliderField,
+  StyleGroup,
+  SwitchField,
+  TextStyleFields,
+} from './text-style-fields';
 
-const sliderValue = (v: number | readonly number[]) => (typeof v === 'number' ? v : (v[0] ?? 0));
-
-function SliderField(props: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  format?: (v: number) => string;
-  onChange: (v: number) => void;
-}) {
-  const id = useId();
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between">
-        <Label id={id}>{props.label}</Label>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {props.format ? props.format(props.value) : props.value}
-        </span>
-      </div>
-      <Slider
-        aria-labelledby={id}
-        min={props.min}
-        max={props.max}
-        step={props.step ?? 1}
-        value={props.value}
-        onValueChange={(v) => props.onChange(sliderValue(v))}
-      />
-    </div>
-  );
-}
-
-function ColorField(props: { label: string; value: string; onChange: (v: string) => void }) {
-  const id = useId();
-  return (
-    <div className="grid justify-items-start gap-1.5">
-      <Label htmlFor={id} className="text-xs">
-        {props.label}
-      </Label>
-      <input
-        id={id}
-        type="color"
-        value={toColorInputValue(props.value)}
-        onChange={(e) => props.onChange(e.target.value)}
-        className="h-8 w-12 cursor-pointer rounded border bg-transparent p-0.5"
-      />
-    </div>
-  );
-}
+const HIGHLIGHT_LABELS: Record<CaptionStyle['highlightMode'], string> = {
+  color: 'Color the spoken word',
+  box: 'Box behind the spoken word',
+  karaoke: 'Karaoke (color words as spoken)',
+  none: 'No highlight',
+};
 
 export function CaptionStyleForm() {
   const style = useEditorStore((s) => s.project.captions.style);
@@ -67,82 +36,78 @@ export function CaptionStyleForm() {
     updateProject((p) => setCaptionStyle(p, patch), {
       key: `caption-style:${Object.keys(patch).join(',')}`,
     });
-  const uppercaseId = useId();
-  const backgroundId = useId();
 
   return (
     <section className="grid gap-4">
-      <h3 className="text-sm font-semibold">Style</h3>
-      <SliderField
-        label="Size"
-        value={style.fontSizePx}
-        min={40}
-        max={120}
-        step={2}
-        format={(v) => `${v}px`}
-        onChange={(fontSizePx) => set({ fontSizePx })}
+      <h3 className="text-sm font-semibold">Look</h3>
+      <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Caption presets">
+        {CAPTION_PRESETS.map((preset) => (
+          <Button
+            key={preset.id}
+            size="sm"
+            variant="outline"
+            onClick={() => updateProject((p) => applyCaptionPreset(p, preset.id))}
+          >
+            {preset.label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="caption-highlight">Highlight</Label>
+        <Select
+          items={HIGHLIGHT_LABELS}
+          value={style.highlightMode}
+          onValueChange={(v) => {
+            if (typeof v === 'string' && v in HIGHLIGHT_LABELS) {
+              set({ highlightMode: v as CaptionStyle['highlightMode'] });
+            }
+          }}
+        >
+          <SelectTrigger id="caption-highlight" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(HIGHLIGHT_LABELS) as CaptionStyle['highlightMode'][]).map((m) => (
+              <SelectItem key={m} value={m}>
+                {HIGHLIGHT_LABELS[m]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <SwitchField
+        label="Pop the spoken word"
+        checked={style.animation === 'pop'}
+        onChange={(on) => set({ animation: on ? 'pop' : 'none' })}
       />
       <SliderField
-        label="Position"
-        value={Math.round(style.positionY * 100)}
-        min={10}
-        max={90}
-        format={(v) => `${v}% from top`}
-        onChange={(v) => set({ positionY: v / 100 })}
-      />
-      <SliderField
-        label="Words at a time"
+        label="Words per line"
         value={style.maxWordsPerLine}
         min={1}
-        max={5}
+        max={6}
         onChange={(maxWordsPerLine) => set({ maxWordsPerLine })}
       />
-      <SliderField
-        label="Outline"
-        value={style.strokeWidthPx}
-        min={0}
-        max={16}
-        format={(v) => (v === 0 ? 'Off' : `${v}px`)}
-        onChange={(strokeWidthPx) => set({ strokeWidthPx })}
+      <SwitchField
+        label="Two lines"
+        checked={style.maxLines === 2}
+        onChange={(on) => set({ maxLines: on ? 2 : 1 })}
       />
 
-      <div className="flex flex-wrap gap-4">
-        <ColorField label="Text" value={style.color} onChange={(color) => set({ color })} />
-        <ColorField
-          label="Highlight"
-          value={style.highlightColor}
-          onChange={(highlightColor) => set({ highlightColor })}
+      <StyleGroup>
+        <TextStyleFields
+          style={style}
+          onChange={set}
+          sizeRange={[32, 140]}
+          extraColors={
+            <ColorField
+              label="Highlight"
+              value={style.highlightColor}
+              onChange={(highlightColor) => set({ highlightColor })}
+            />
+          }
         />
-        <ColorField
-          label="Outline"
-          value={style.strokeColor}
-          onChange={(strokeColor) => set({ strokeColor })}
-        />
-        {style.backgroundColor && (
-          <ColorField
-            label="Background"
-            value={style.backgroundColor}
-            onChange={(backgroundColor) => set({ backgroundColor })}
-          />
-        )}
-      </div>
-
-      <div className="flex items-center justify-between">
-        <Label htmlFor={uppercaseId}>Uppercase</Label>
-        <Switch
-          id={uppercaseId}
-          checked={style.uppercase}
-          onCheckedChange={(uppercase) => set({ uppercase })}
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <Label htmlFor={backgroundId}>Background box</Label>
-        <Switch
-          id={backgroundId}
-          checked={style.backgroundColor !== undefined}
-          onCheckedChange={(on) => set({ backgroundColor: on ? '#000000' : undefined })}
-        />
-      </div>
+      </StyleGroup>
     </section>
   );
 }

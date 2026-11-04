@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import sample from '../fixtures/project.sample.json' with { type: 'json' };
-import { createEmptyProject, Project, SCRIPT_MAX_CHARS } from './project';
+import { fontWeight, TEXT_FONTS } from './fonts';
+import {
+  createEmptyProject,
+  DEFAULT_RANK_COLOR,
+  DEFAULT_RANKING_TITLE_STYLE,
+  Project,
+  SCRIPT_MAX_CHARS,
+} from './project';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -83,5 +90,68 @@ describe('Project schema', () => {
     const p = clone(sample);
     (p as { version: number }).version = 2;
     expect(Project.safeParse(p).success).toBe(false);
+  });
+});
+
+describe('Phase 7 style fields', () => {
+  /** A project as saved before Phase 7: none of the new fields. */
+  function phase6Project(): Record<string, unknown> {
+    const p = clone(sample) as unknown as {
+      captions: { style: Record<string, unknown> };
+      hookTitle: Record<string, unknown>;
+      ranking: Record<string, unknown>;
+    };
+    for (const k of ['highlightMode', 'animation', 'maxLines']) delete p.captions.style[k];
+    delete p.hookTitle.entrance;
+    for (const k of ['layout', 'titleStyle', 'labelStyle', 'rankColor', 'entrance']) {
+      delete p.ranking[k];
+    }
+    return p as unknown as Record<string, unknown>;
+  }
+
+  it('parses an older project, filling in defaults that keep its look', () => {
+    const parsed = Project.parse(phase6Project());
+    expect(parsed.captions.style).toMatchObject({
+      highlightMode: 'color',
+      animation: 'none',
+      maxLines: 1,
+    });
+    expect(parsed.hookTitle.entrance).toBe('none');
+    expect(parsed.ranking).toMatchObject({
+      layout: 'badge',
+      rankColor: DEFAULT_RANK_COLOR,
+      entrance: 'none',
+      titleStyle: DEFAULT_RANKING_TITLE_STYLE,
+    });
+  });
+
+  it('rejects unknown values', () => {
+    for (const [path, value] of [
+      [['captions', 'style', 'highlightMode'], 'glow'],
+      [['captions', 'style', 'maxLines'], 3],
+      [['ranking', 'layout'], 'grid'],
+      [['ranking', 'rankColor'], 'gold'],
+      [['hookTitle', 'entrance'], 'spin'],
+    ] as const) {
+      const p = clone(sample) as unknown as Record<string, Record<string, unknown>>;
+      let target: Record<string, unknown> = p;
+      for (const key of path.slice(0, -1)) target = target[key] as Record<string, unknown>;
+      target[path.at(-1)!] = value;
+      expect(Project.safeParse(p).success, path.join('.')).toBe(false);
+    }
+  });
+
+  it('gives new projects pop-in animations', () => {
+    const p = createEmptyProject();
+    expect(p.captions.style.animation).toBe('pop');
+    expect(p.hookTitle.entrance).toBe('pop');
+    expect(p.ranking.entrance).toBe('pop');
+  });
+
+  it('knows each font weight', () => {
+    expect(TEXT_FONTS.map((f) => f.id)).toContain('Bebas Neue');
+    expect(fontWeight('Bebas Neue')).toBe(400);
+    expect(fontWeight('Oswald')).toBe(700);
+    expect(fontWeight('Comic Sans')).toBe(800);
   });
 });

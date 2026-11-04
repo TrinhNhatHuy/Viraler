@@ -6,7 +6,9 @@ import {
   captionFrameAt,
   lineLeft,
 } from './captions';
+import { wordPopScale } from './animation';
 import { fontFor } from './fonts';
+import { LINE_HEIGHT } from './text-block';
 
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
@@ -38,7 +40,11 @@ export class CaptionLayoutCache {
   }
 }
 
-/** Draws the caption page on screen at `tMs` (nothing between pages). */
+/**
+ * Draws the caption page on screen at `tMs` (nothing between pages): lines
+ * stacked around `positionY`, the spoken word highlighted per `highlightMode`,
+ * and popped when `animation` is 'pop'.
+ */
 export function drawCaptions(ctx: Ctx, captions: Captions, tMs: number, cache: CaptionLayoutCache) {
   const frame = captionFrameAt(cache.get(ctx, captions), tMs);
   if (!frame) return;
@@ -48,22 +54,46 @@ export function drawCaptions(ctx: Ctx, captions: Captions, tMs: number, cache: C
 
   // A single word wider than the safe area is scaled down to fit.
   const scale = page.width > CAPTION_SAFE_WIDTH ? CAPTION_SAFE_WIDTH / page.width : 1;
-  const x0 = lineLeft(page.width * scale, style.align);
-  const y = style.positionY * CANVAS_HEIGHT;
+  const lineH = size * LINE_HEIGHT * scale;
+  const top = style.positionY * CANVAS_HEIGHT - (page.lineWidths.length * lineH) / 2;
+  const lineX = page.lineWidths.map((w) => lineLeft(w * scale, style.align));
+  const lineY = page.lineWidths.map((_, i) => top + lineH * (i + 0.5));
+  const active = page.words[activeIndex];
+  const pop = style.animation === 'pop' && active ? wordPopScale(tMs - active.startMs) : 1;
 
   ctx.save();
-  ctx.translate(x0, y);
-  ctx.scale(scale, scale);
   ctx.font = fontFor(style);
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
+  const base = ctx.getTransform();
+
+  /** Moves to the word's centre (scaled, popped if active); text is drawn at -width/2. */
+  const at = (i: number) => {
+    const w = page.words[i]!;
+    const s = scale * (i === activeIndex ? pop : 1);
+    ctx.setTransform(base);
+    ctx.translate(lineX[w.line]! + (w.x + w.width / 2) * scale, lineY[w.line]!);
+    ctx.scale(s, s);
+    return w;
+  };
 
   if (style.backgroundColor) {
-    const padX = size * 0.35;
-    const padY = size * 0.2;
+    const padX = size * 0.35 * scale;
+    const padY = size * 0.2 * scale;
+    const x0 = Math.min(...lineX) - padX;
+    const x1 = Math.max(...lineX.map((x, i) => x + page.lineWidths[i]! * scale)) + padX;
     ctx.fillStyle = style.backgroundColor;
     ctx.beginPath();
-    ctx.roundRect(-padX, -size / 2 - padY, page.width + padX * 2, size + padY * 2, size * 0.25);
+    ctx.roundRect(x0, top - padY, x1 - x0, page.lineWidths.length * lineH + padY * 2, size * 0.25);
+    ctx.fill();
+  }
+
+  if (style.highlightMode === 'box' && active) {
+    const w = at(activeIndex);
+    const pad = size * 0.14;
+    ctx.fillStyle = style.highlightColor;
+    ctx.beginPath();
+    ctx.roundRect(-w.width / 2 - pad, -size * 0.58, w.width + pad * 2, size * 1.16, size * 0.18);
     ctx.fill();
   }
 
@@ -73,11 +103,21 @@ export function drawCaptions(ctx: Ctx, captions: Captions, tMs: number, cache: C
     ctx.miterLimit = 2;
     ctx.lineWidth = style.strokeWidthPx * 2; // half of a stroke falls inside the glyph
     ctx.strokeStyle = style.strokeColor;
-    for (const w of page.words) ctx.strokeText(w.text, w.x, 0);
+    page.words.forEach((_, i) => {
+      const w = at(i);
+      ctx.strokeText(w.text, -w.width / 2, 0);
+    });
   }
-  page.words.forEach((w, i) => {
-    ctx.fillStyle = i === activeIndex ? style.highlightColor : style.color;
-    ctx.fillText(w.text, w.x, 0);
+  page.words.forEach((_, i) => {
+    const lit =
+      style.highlightMode === 'color'
+        ? i === activeIndex
+        : style.highlightMode === 'karaoke'
+          ? i <= activeIndex
+          : false;
+    const w = at(i);
+    ctx.fillStyle = lit ? style.highlightColor : style.color;
+    ctx.fillText(w.text, -w.width / 2, 0);
   });
   ctx.restore();
 }

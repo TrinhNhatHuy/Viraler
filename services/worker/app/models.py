@@ -41,9 +41,17 @@ class TextStyle(CamelModel):
     uppercase: StrictBool
 
 
+# Defaults below mirror packages/shared/src/project.ts: fields added after a
+# format was in use default to the old look, so older projects still validate.
+Entrance = Literal["none", "pop"]
+
+
 class CaptionStyle(TextStyle):
     highlight_color: HexColor
     max_words_per_line: Annotated[int, Field(gt=0, strict=True)]
+    highlight_mode: Literal["color", "box", "karaoke", "none"] = "color"
+    animation: Literal["none", "pop"] = "none"
+    max_lines: Literal[1, 2] = 1
 
 
 class Canvas(CamelModel):
@@ -86,12 +94,41 @@ class HookTitle(CamelModel):
     text: str
     duration_ms: Ms
     style: TextStyle
+    entrance: Entrance = "none"
+
+
+def _text_style(**overrides: object) -> "TextStyle":
+    base: dict[str, object] = {
+        "font_family": "Inter",
+        "font_size_px": 72,
+        "color": "#ffffff",
+        "stroke_color": "#000000",
+        "stroke_width_px": 6,
+        "position_y": 0.2,
+        "align": "center",
+        "uppercase": True,
+    }
+    return TextStyle(**{**base, **overrides})  # type: ignore[arg-type]
+
+
+# DEFAULT_RANKING_TITLE_STYLE / DEFAULT_RANK_LABEL_STYLE in project.ts
+def _ranking_title_style() -> "TextStyle":
+    return _text_style(font_size_px=64, position_y=0.09, stroke_width_px=6)
+
+
+def _rank_label_style() -> "TextStyle":
+    return _text_style(font_size_px=88, position_y=0.17, stroke_width_px=8)
 
 
 class Ranking(CamelModel):
     enabled: StrictBool
     title: str
     order: Literal["descending", "ascending"]
+    layout: Literal["badge", "list"] = "badge"
+    title_style: TextStyle = Field(default_factory=_ranking_title_style)
+    label_style: TextStyle = Field(default_factory=_rank_label_style)
+    rank_color: HexColor = "#ffd400"
+    entrance: Entrance = "none"
 
 
 class Clip(CamelModel):

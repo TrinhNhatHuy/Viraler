@@ -1,4 +1,4 @@
-import { DEFAULT_TEXT_STYLE, type Project, type TextStyle } from '@viraler/shared';
+import type { Clip, Project } from '@viraler/shared';
 import { clipAt } from '@/lib/timeline/model';
 
 /**
@@ -9,26 +9,28 @@ import { clipAt } from '@/lib/timeline/model';
  * overlays are hidden so the top of the frame never holds two texts.
  */
 
-/** Ranking texts have no style in the project yet (Phase 7 adds that). */
-export const RANKING_TITLE_STYLE: TextStyle = {
-  ...DEFAULT_TEXT_STYLE,
-  fontSizePx: 64,
-  positionY: 0.09,
-  strokeWidthPx: 6,
-};
-export const RANK_LABEL_STYLE: TextStyle = {
-  ...DEFAULT_TEXT_STYLE,
-  fontSizePx: 88,
-  positionY: 0.17,
-  strokeWidthPx: 8,
-};
-export const RANK_COLOR = '#ffd400';
+/** At most this many ranks in the countdown list. */
+export const RANK_LIST_MAX = 10;
+
+export interface RankListItem {
+  rank: number;
+  label: string;
+  /** Before its clip, while it plays, or after. */
+  state: 'upcoming' | 'current' | 'done';
+  /** Time since its clip started (for the pop-in while current). */
+  elapsedMs: number;
+}
 
 export interface OverlayState {
-  hook: string | null;
+  hook: { text: string; elapsedMs: number } | null;
   rankingTitle: string | null;
-  rank: { rank: number; label: string } | null;
+  /** Badge layout: the current clip's rank. */
+  rank: { rank: number; label: string; elapsedMs: number } | null;
+  /** List layout: every rank. */
+  list: RankListItem[] | null;
 }
+
+const NONE = { rankingTitle: null, rank: null, list: null };
 
 export function overlayState(
   project: Pick<Project, 'hookTitle' | 'ranking' | 'clips'>,
@@ -36,16 +38,55 @@ export function overlayState(
 ): OverlayState {
   const { hookTitle, ranking } = project;
   const hookText = hookTitle.text.trim();
-  const hook =
-    hookTitle.enabled && hookText && tMs >= 0 && tMs < hookTitle.durationMs ? hookText : null;
-  if (hook || !ranking.enabled) return { hook, rankingTitle: null, rank: null };
+  if (hookTitle.enabled && hookText && tMs >= 0 && tMs < hookTitle.durationMs) {
+    return { hook: { text: hookText, elapsedMs: tMs }, ...NONE };
+  }
+  if (!ranking.enabled) return { hook: null, ...NONE };
 
+  const rankingTitle = ranking.title.trim() || null;
+  if (ranking.layout === 'list') {
+    return { hook: null, rankingTitle, rank: null, list: rankList(project.clips, tMs) };
+  }
   const clip = clipAt(project.clips, tMs)?.clip;
   return {
     hook: null,
-    rankingTitle: ranking.title.trim() || null,
-    rank: clip?.rank !== undefined ? { rank: clip.rank, label: clip.label?.trim() ?? '' } : null,
+    rankingTitle,
+    rank:
+      clip?.rank !== undefined
+        ? { rank: clip.rank, label: clip.label?.trim() ?? '', elapsedMs: tMs - clip.startMs }
+        : null,
+    list: null,
   };
+}
+
+/**
+ * The countdown list: each distinct rank once, shown 1…N top to bottom (at
+ * most RANK_LIST_MAX), whatever order the clips play in. A rank spans from its
+ * first clip's start to its last clip's end.
+ */
+export function rankList(clips: readonly Clip[], tMs: number): RankListItem[] {
+  const spans = new Map<number, { start: number; end: number; label: string }>();
+  for (const c of clips) {
+    if (c.rank === undefined) continue;
+    const span = spans.get(c.rank);
+    const end = c.startMs + c.durationMs;
+    const label = c.label?.trim() ?? '';
+    if (!span) spans.set(c.rank, { start: c.startMs, end, label });
+    else {
+      span.start = Math.min(span.start, c.startMs);
+      span.end = Math.max(span.end, end);
+      span.label ||= label;
+    }
+  }
+  return [...spans.entries()]
+    .sort(([a], [b]) => a - b)
+    .slice(0, RANK_LIST_MAX)
+    .map(([rank, span]) => ({
+      rank,
+      label: span.label,
+      state: tMs < span.start ? 'upcoming' : tMs < span.end ? 'current' : 'done',
+      elapsedMs: tMs - span.start,
+    }));
 }
 
 export function rankText(rank: { rank: number; label: string }): string {

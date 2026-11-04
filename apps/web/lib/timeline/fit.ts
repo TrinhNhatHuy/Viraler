@@ -26,7 +26,7 @@ export function fitToVoiceover(
     return { clips: clips as Clip[], shortByMs: Math.max(0, targetMs) };
   }
   const caps = clips.map((c) => maxClipMs(c, media.get(c.mediaId)));
-  const real = waterFill(
+  const real = fitDurations(
     clips.map((c) => c.durationMs),
     caps,
     targetMs,
@@ -46,8 +46,12 @@ export function fitToVoiceover(
   return { clips: normalizeClips(out), shortByMs: Math.max(0, targetMs - total) };
 }
 
-/** Proportional lengths summing to `target`, each within [MIN_CLIP_MS, cap]. */
-function waterFill(weights: number[], caps: number[], target: number): number[] {
+/**
+ * Proportional lengths summing to `target`, each within [MIN_CLIP_MS, cap]
+ * ("water-filling"): items that hit a bound are fixed and the rest re-share
+ * the remainder. Real numbers; callers round.
+ */
+export function fitDurations(weights: number[], caps: number[], target: number): number[] {
   const out = new Array<number>(weights.length).fill(0);
   const free = new Set(weights.map((_, i) => i));
   let remaining = target;

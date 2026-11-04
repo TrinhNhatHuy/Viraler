@@ -1,6 +1,6 @@
 import type { Clip } from '@viraler/shared';
 import { describe, expect, it } from 'vitest';
-import { numberClips, setClipLabel, setClipRank } from './ranking';
+import { numberClips, setClipLabel, setClipRank } from './edit';
 
 const clips: Clip[] = ['a', 'b', 'c'].map((id, i) => ({
   id,

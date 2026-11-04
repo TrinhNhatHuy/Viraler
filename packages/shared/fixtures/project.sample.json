@@ -1,6 +1,11 @@
 {
   "version": 1,
-  "canvas": { "width": 1080, "height": 1920, "fit": "fill", "background": "#000000" },
+  "canvas": {
+    "width": 1080,
+    "height": 1920,
+    "fit": "fill",
+    "background": "#000000"
+  },
   "script": "Top 3 fastest animals on Earth. Number three: the pronghorn.",
   "voiceover": {
     "src": "user-id/project-id/voiceover.wav",
@@ -13,9 +18,21 @@
   "captions": {
     "enabled": true,
     "words": [
-      { "text": "Top", "startMs": 0, "endMs": 250 },
-      { "text": "3", "startMs": 250, "endMs": 500 },
-      { "text": "fastest", "startMs": 500, "endMs": 1000 }
+      {
+        "text": "Top",
+        "startMs": 0,
+        "endMs": 250
+      },
+      {
+        "text": "3",
+        "startMs": 250,
+        "endMs": 500
+      },
+      {
+        "text": "fastest",
+        "startMs": 500,
+        "endMs": 1000
+      }
     ],
     "style": {
       "fontFamily": "Inter",
@@ -27,7 +44,10 @@
       "align": "center",
       "uppercase": true,
       "highlightColor": "#ffd400",
-      "maxWordsPerLine": 3
+      "maxWordsPerLine": 3,
+      "highlightMode": "box",
+      "animation": "pop",
+      "maxLines": 2
     },
     "voiceoverSrc": "user-id/project-id/voiceover.wav"
   },
@@ -45,9 +65,37 @@
       "positionY": 0.15,
       "align": "center",
       "uppercase": true
-    }
+    },
+    "entrance": "pop"
   },
-  "ranking": { "enabled": true, "title": "Fastest animals", "order": "descending" },
+  "ranking": {
+    "enabled": true,
+    "title": "Fastest animals",
+    "order": "descending",
+    "layout": "list",
+    "titleStyle": {
+      "fontFamily": "Bebas Neue",
+      "fontSizePx": 64,
+      "color": "#ffffff",
+      "strokeColor": "#000000",
+      "strokeWidthPx": 6,
+      "positionY": 0.09,
+      "align": "center",
+      "uppercase": true
+    },
+    "labelStyle": {
+      "fontFamily": "Inter",
+      "fontSizePx": 72,
+      "color": "#ffffff",
+      "strokeColor": "#000000",
+      "strokeWidthPx": 8,
+      "positionY": 0.2,
+      "align": "left",
+      "uppercase": false
+    },
+    "rankColor": "#ffd400",
+    "entrance": "pop"
+  },
   "clips": [
     {
       "id": "clip-1",
@@ -80,6 +128,11 @@
       "thumbnail": "user-id/media/pronghorn.thumb.jpg",
       "name": "Pronghorn running"
     },
-    { "id": "media-2", "kind": "image", "src": "user-id/media/cheetah.jpg", "origin": "upload" }
+    {
+      "id": "media-2",
+      "kind": "image",
+      "src": "user-id/media/cheetah.jpg",
+      "origin": "upload"
+    }
   ]
 }

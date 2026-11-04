@@ -1,8 +1,8 @@
 'use client';
 
-import type { HookTitle, Ranking } from '@viraler/shared';
-import { ListOrderedIcon } from 'lucide-react';
-import { useId } from 'react';
+import type { HookTitle, Ranking, TextStyle } from '@viraler/shared';
+import { AudioLinesIcon, ListOrderedIcon } from 'lucide-react';
+import { useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,11 +17,24 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { formatTimecode } from '@/lib/format';
-import { MAX_RANK, numberClips, RANK_LABEL_MAX, setClipLabel, setClipRank } from '@/lib/ranking';
-import { useEditorStore } from './editor-store-provider';
+import {
+  MAX_RANK,
+  numberClips,
+  RANK_LABEL_MAX,
+  setClipLabel,
+  setClipRank,
+} from '@/lib/ranking/edit';
+import { type SyncResult, syncRanksToVoiceover } from '@/lib/ranking/sync';
+import { patchTextStyle } from '@/lib/text-style';
+import { useEditorStore, useEditorStoreApi } from './editor-store-provider';
+import { ColorField, StyleGroup, SwitchField, TextStyleFields } from './text-style-fields';
 
 const HOOK_TEXT_MAX = 120;
 const RANKING_TITLE_MAX = 100;
+const LAYOUT_LABELS: Record<Ranking['layout'], string> = {
+  badge: 'Badge (current rank)',
+  list: 'Countdown list (all ranks)',
+};
 const ORDER_LABELS: Record<Ranking['order'], string> = {
   descending: 'Countdown (highest first)',
   ascending: 'Count up (1 first)',
@@ -85,6 +98,22 @@ function HookTitleSection() {
           }
         />
       </div>
+      <SwitchField
+        label="Pop in"
+        checked={hook.entrance === 'pop'}
+        onChange={(on) => set({ entrance: on ? 'pop' : 'none' })}
+      />
+      <StyleGroup>
+        <TextStyleFields
+          style={hook.style}
+          onChange={(patch) =>
+            set(
+              { style: patchTextStyle(hook.style, patch) },
+              `hook-style:${Object.keys(patch).join(',')}`,
+            )
+          }
+        />
+      </StyleGroup>
     </section>
   );
 }
@@ -94,11 +123,27 @@ function RankingSection() {
   const clips = useEditorStore((s) => s.project.clips);
   const updateProject = useEditorStore((s) => s.updateProject);
   const id = useId();
+  const store = useEditorStoreApi();
+  const [sync, setSync] = useState<SyncResult | null>(null);
   const set = (patch: Partial<Ranking>, key?: string) =>
     updateProject(
       (p) => ({ ...p, ranking: { ...p.ranking, ...patch } }),
       key ? { key } : undefined,
     );
+  const setStyle = (which: 'titleStyle' | 'labelStyle', patch: Partial<TextStyle>) =>
+    updateProject(
+      (p) => ({
+        ...p,
+        ranking: { ...p.ranking, [which]: patchTextStyle(p.ranking[which], patch) },
+      }),
+      { key: `ranking-${which}:${Object.keys(patch).join(',')}` },
+    );
+
+  const runSync = () => {
+    const result = syncRanksToVoiceover(store.getState().project);
+    setSync(result);
+    if (result.kind === 'ok') updateProject((p) => ({ ...p, clips: result.clips }));
+  };
 
   return (
     <section className="grid gap-3">
@@ -138,20 +183,78 @@ function RankingSection() {
           </SelectContent>
         </Select>
       </div>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={clips.length === 0}
-        onClick={() =>
-          updateProject((p) => ({
-            ...p,
-            ranking: { ...p.ranking, enabled: true },
-            clips: numberClips(p.clips, p.ranking.order),
-          }))
-        }
-      >
-        <ListOrderedIcon /> Number clips
-      </Button>
+      <div className="grid gap-1.5">
+        <Label htmlFor={`${id}-layout`}>Layout</Label>
+        <Select
+          items={LAYOUT_LABELS}
+          value={ranking.layout}
+          onValueChange={(v) => {
+            if (v === 'badge' || v === 'list') set({ layout: v });
+          }}
+        >
+          <SelectTrigger id={`${id}-layout`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(LAYOUT_LABELS) as Ranking['layout'][]).map((l) => (
+              <SelectItem key={l} value={l}>
+                {LAYOUT_LABELS[l]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <SwitchField
+        label="Pop in"
+        checked={ranking.entrance === 'pop'}
+        onChange={(on) => set({ entrance: on ? 'pop' : 'none' })}
+      />
+      <div className="grid grid-cols-2 gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={clips.length === 0}
+          onClick={() =>
+            updateProject((p) => ({
+              ...p,
+              ranking: { ...p.ranking, enabled: true },
+              clips: numberClips(p.clips, p.ranking.order),
+            }))
+          }
+        >
+          <ListOrderedIcon /> Number clips
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={!clips.some((c) => c.rank !== undefined)}
+          onClick={runSync}
+          title='Start each ranked clip where "Number N" is said'
+        >
+          <AudioLinesIcon /> Sync to voice
+        </Button>
+      </div>
+      {sync && <SyncReport result={sync} />}
+
+      <StyleGroup title="Title style">
+        <TextStyleFields
+          style={ranking.titleStyle}
+          onChange={(patch) => setStyle('titleStyle', patch)}
+        />
+      </StyleGroup>
+      <StyleGroup title={ranking.layout === 'list' ? 'List style' : 'Rank style'}>
+        <TextStyleFields
+          style={ranking.labelStyle}
+          onChange={(patch) => setStyle('labelStyle', patch)}
+          extraColors={
+            <ColorField
+              label="Rank"
+              value={ranking.rankColor}
+              onChange={(rankColor) => set({ rankColor }, 'ranking-rank-color')}
+            />
+          }
+        />
+      </StyleGroup>
 
       {clips.length === 0 ? (
         <p className="text-xs text-muted-foreground">Add clips to the timeline to rank them.</p>
@@ -197,5 +300,33 @@ function RankingSection() {
         </ol>
       )}
     </section>
+  );
+}
+
+function SyncReport({ result }: { result: SyncResult }) {
+  if (result.kind === 'error') {
+    return (
+      <p className="text-xs text-destructive" role="alert">
+        {result.message}
+      </p>
+    );
+  }
+  return (
+    <div className="grid gap-1 text-xs" role="status">
+      <p className="text-muted-foreground">
+        Synced {result.found.map((r) => `#${r}`).join(', ')} to the voiceover.
+      </p>
+      {result.missing.length > 0 && (
+        <p className="text-amber-700 dark:text-amber-400">
+          Not found in the captions: {result.missing.map((r) => `#${r}`).join(', ')}.
+        </p>
+      )}
+      {result.shortfalls.map((s) => (
+        <p key={`${s.rank}-${s.needMs}`} className="text-amber-700 dark:text-amber-400">
+          {s.rank === null ? 'The intro' : `#${s.rank}`} needs {(s.needMs / 1000).toFixed(1)} s of
+          footage but has {(s.haveMs / 1000).toFixed(1)} s: add a clip or a longer video.
+        </p>
+      ))}
+    </div>
   );
 }

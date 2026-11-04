@@ -1,20 +1,33 @@
-import type { TextStyle } from '@viraler/shared';
+import { fontWeight, type Project, type TextFontId, type TextStyle } from '@viraler/shared';
 
 /**
- * Fonts for canvas text. Fonts are self-hosted by next/font (app/layout.tsx),
- * which exposes the generated family name through a CSS variable.
+ * Fonts for canvas text (the list is in packages/shared/src/fonts.ts). They're
+ * self-hosted by next/font (app/layout.tsx), which exposes each generated
+ * family name through a CSS variable.
  */
 
-/** Captions and titles are drawn heavy, like most short-form video text. */
-export const TEXT_FONT_WEIGHT = 800;
-
-const FONT_VARIABLES: Record<string, string> = {
+const FONT_VARIABLES: Record<TextFontId, string> = {
   Inter: '--font-inter',
+  Montserrat: '--font-montserrat',
+  Poppins: '--font-poppins',
+  Oswald: '--font-oswald',
+  'Bebas Neue': '--font-bebas-neue',
+  Anton: '--font-anton',
 };
+
+/** Every text style the renderer may draw for a project (for font loading). */
+export function projectTextStyles(project: Project): TextStyle[] {
+  return [
+    project.captions.style,
+    project.hookTitle.style,
+    project.ranking.titleStyle,
+    project.ranking.labelStyle,
+  ];
+}
 
 /** CSS font-family list for a project font name. */
 export function resolveFontFamily(name: string): string {
-  const variable = FONT_VARIABLES[name];
+  const variable = (FONT_VARIABLES as Record<string, string>)[name];
   if (variable && typeof document !== 'undefined') {
     const family = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
     if (family) return family;
@@ -23,7 +36,7 @@ export function resolveFontFamily(name: string): string {
 }
 
 export function fontFor(style: Pick<TextStyle, 'fontFamily' | 'fontSizePx'>): string {
-  return `${TEXT_FONT_WEIGHT} ${style.fontSizePx}px ${resolveFontFamily(style.fontFamily)}`;
+  return `${fontWeight(style.fontFamily)} ${style.fontSizePx}px ${resolveFontFamily(style.fontFamily)}`;
 }
 
 /** Loads the font faces a style needs so the first draw doesn't use a fallback. */

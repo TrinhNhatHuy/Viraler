@@ -12,8 +12,7 @@ import {
   type StreamTargetChunk,
 } from 'mediabunny';
 import { mediaUrls } from '@/lib/media/urls';
-import { ensureFont } from '@/lib/render/fonts';
-import { RANK_LABEL_STYLE, RANKING_TITLE_STYLE } from '@/lib/render/overlays';
+import { ensureFont, projectTextStyles } from '@/lib/render/fonts';
 import { Renderer } from '@/lib/render/renderer';
 import { projectDurationMs } from '@/lib/timeline/model';
 import { EXPORT_SAMPLE_RATE, mixAudio } from './audio';
@@ -80,11 +79,7 @@ export async function exportVideo(
       registerAacEncoder();
     }
   }
-  await Promise.all(
-    [project.captions.style, project.hookTitle.style, RANKING_TITLE_STYLE, RANK_LABEL_STYLE].map(
-      ensureFont,
-    ),
-  );
+  await Promise.all(projectTextStyles(project).map(ensureFont));
 
   const source = new ExportFrames(project, fps);
   const writable = file ? await file.createWritable() : null;

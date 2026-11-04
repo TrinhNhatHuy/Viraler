@@ -3,11 +3,12 @@
 import { CANVAS_HEIGHT, CANVAS_WIDTH } from '@viraler/shared';
 import { useEffect, useRef } from 'react';
 import { mediaUrls } from '@/lib/media/urls';
-import { ensureFont } from '@/lib/render/fonts';
+import { ensureFont, projectTextStyles } from '@/lib/render/fonts';
 import { MediaPool } from '@/lib/render/media-pool';
 import { Renderer } from '@/lib/render/renderer';
 import { syncVideos } from '@/lib/render/video-sync';
-import { useEditorStoreApi, usePlaybackApi } from './editor-store-provider';
+import { useEditorStoreApi, usePlaybackApi, useTimeline } from './editor-store-provider';
+import { SafeAreaGuides } from './safe-area-guides';
 
 /**
  * Live preview: draws the project with lib/render at the playback time. Redraws
@@ -18,6 +19,7 @@ export function Preview() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const store = useEditorStoreApi();
   const playback = usePlaybackApi();
+  const showGuides = useTimeline((s) => s.showGuides);
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -40,14 +42,14 @@ export function Preview() {
       if (playing && !frame) frame = requestAnimationFrame(draw);
     }
 
-    // Redraw with the real font once it has loaded (text widths change).
+    // Redraw with the real fonts once they've loaded (text widths change).
     let fontKey = '';
     const loadFont = () => {
-      const { style } = store.getState().project.captions;
-      const key = `${style.fontFamily}/${style.fontSizePx}`;
+      const styles = projectTextStyles(store.getState().project);
+      const key = styles.map((s) => `${s.fontFamily}/${s.fontSizePx}`).join('|');
       if (key === fontKey) return;
       fontKey = key;
-      void ensureFont(style).then(() => {
+      void Promise.all(styles.map(ensureFont)).then(() => {
         renderer.invalidateText();
         schedule();
       });
@@ -73,12 +75,15 @@ export function Preview() {
   }, [store, playback]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={CANVAS_WIDTH}
-      height={CANVAS_HEIGHT}
-      className="aspect-[9/16] h-full max-h-full max-w-full rounded-lg shadow-lg ring-1 ring-border"
-      aria-label="Video preview"
-    />
+    <div className="relative aspect-[9/16] h-full max-h-full max-w-full overflow-hidden rounded-lg shadow-lg ring-1 ring-border">
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_WIDTH}
+        height={CANVAS_HEIGHT}
+        className="block h-full w-full"
+        aria-label="Video preview"
+      />
+      {showGuides && <SafeAreaGuides />}
+    </div>
   );
 }

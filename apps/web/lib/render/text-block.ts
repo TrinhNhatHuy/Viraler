@@ -45,6 +45,11 @@ export interface TextBlockOptions {
   maxLines?: number;
   /** Draws the first word in this color (e.g. the "#3" of a rank label). */
   firstWordColor?: string;
+  /** Overrides `style.color` for the rest of the text. */
+  color?: string;
+  /** Extra scale around the block's centre and opacity (entrance animations). */
+  scale?: number;
+  alpha?: number;
 }
 
 /**
@@ -76,6 +81,16 @@ export function drawTextBlock(
 
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
+  const color = opts.color ?? style.color;
+  if (opts.alpha !== undefined) ctx.globalAlpha *= Math.max(0, Math.min(1, opts.alpha));
+  if (opts.scale !== undefined && opts.scale !== 1) {
+    // Scale around the block's centre.
+    const cx = (Math.min(...lefts) + Math.max(...lefts.map((l, i) => l + widths[i]! * scale))) / 2;
+    const cy = style.positionY * CANVAS_HEIGHT;
+    ctx.translate(cx, cy);
+    ctx.scale(opts.scale, opts.scale);
+    ctx.translate(-cx, -cy);
+  }
 
   if (style.backgroundColor) {
     const padX = size * 0.35;
@@ -117,11 +132,11 @@ export function drawTextBlock(
       ctx.fillStyle = opts.firstWordColor;
       ctx.fillText(first, 0, 0);
       if (space !== -1) {
-        ctx.fillStyle = style.color;
+        ctx.fillStyle = color;
         ctx.fillText(line.slice(space), measure(first), 0);
       }
     } else {
-      ctx.fillStyle = style.color;
+      ctx.fillStyle = color;
       ctx.fillText(line, 0, 0);
     }
   });

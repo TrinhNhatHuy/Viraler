@@ -139,3 +139,56 @@ describe('lineLeft', () => {
     expect(lineLeft(200, 'right')).toBe(safeLeft + CAPTION_SAFE_WIDTH - 200);
   });
 });
+
+describe('two-line pages', () => {
+  const two = { ...style, maxLines: 2 };
+
+  it('starts the second line when the first is full', () => {
+    const [page, next] = buildCaptionPages(seq(['a', 'b', 'c', 'd', 'e', 'f', 'g']), two, measure);
+    expect(page!.words.map((w) => `${w.text}${w.line}`)).toEqual([
+      'a0',
+      'b0',
+      'c0',
+      'd1',
+      'e1',
+      'f1',
+    ]);
+    expect(page!.words[3]!.x).toBe(0); // the second line starts at its own left edge
+    expect(page!.lineWidths).toEqual([50, 50]);
+    expect(next!.words.map((w) => w.text)).toEqual(['g']);
+  });
+
+  it('still breaks the page at a sentence end or a pause', () => {
+    const pages = buildCaptionPages(seq(['Hi.', 'there', 'you']), two, measure);
+    expect(pages.map((p) => p.words.length)).toEqual([1, 2]);
+    const paused = [...seq(['one']), ...seq(['two'], 300 + 700)];
+    expect(buildCaptionPages(paused, two, measure)).toHaveLength(2);
+  });
+
+  it('wraps by width as well as word count', () => {
+    const wide = 'x'.repeat(50);
+    const [page] = buildCaptionPages(seq([wide, wide, 'y']), two, measure);
+    expect(page!.words.map((w) => w.line)).toEqual([0, 1, 1]);
+    expect(page!.width).toBe(Math.max(...page!.lineWidths));
+  });
+
+  it('keeps one-line behaviour by default', () => {
+    expect(
+      buildCaptionPages(seq(['a', 'b', 'c', 'd']), style, measure).map((p) => p.words.length),
+    ).toEqual([3, 1]);
+  });
+});
+
+describe('zero-length words', () => {
+  it('count as spoken once their start passes', () => {
+    const words = [
+      { text: 'Number', startMs: 1000, endMs: 1000 },
+      { text: 'three:', startMs: 1000, endMs: 1400 },
+      { text: 'the', startMs: 1500, endMs: 1600 },
+    ];
+    const pages = buildCaptionPages(words, style, measure);
+    // Both start at 1000: the later one is active and the earlier one counts as spoken (karaoke).
+    expect(captionFrameAt(pages, 1000)?.activeIndex).toBe(1);
+    expect(captionFrameAt(pages, 1550)?.activeIndex).toBe(2);
+  });
+});
